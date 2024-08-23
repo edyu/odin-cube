@@ -77,7 +77,9 @@ start_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	d := task.new_docker(&config)
 	result = task.docker_run(&d)
 	if result.error != nil {
-		fmt.printf("Error running task %v: %v\n", t.id, result.error)
+		id := uuid.to_string(t.id)
+		defer delete_string(id)
+		fmt.eprintf("Error running task %s: %v\n", id, result.error)
 		t.state = .Failed
 		w.db[t.id] = t
 		return result
@@ -101,7 +103,9 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	t.finish_time = time.now()
 	t.state = .Completed
 	w.db[t.id] = t
-	fmt.printf("Stopped and removed container %v for task %v\n", t.container_id, t.id)
+	id := uuid.to_string(t.id)
+	defer delete_string(id)
+	fmt.printf("Stopped and removed container %v for task %s\n", t.container_id, id)
 
 	return result
 }

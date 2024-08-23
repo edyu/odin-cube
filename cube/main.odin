@@ -40,6 +40,7 @@ main :: proc() {
 	t := task.new("Task-1", "Image-1", 1024, 1)
 
 	te := task.new_event(t)
+	defer delete_string(te.id)
 
 	fmt.printf("task: %v\n", t)
 	fmt.printf("task event: %v\n", te)

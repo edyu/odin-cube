@@ -63,14 +63,14 @@ new :: proc(name: string, image: string, memory: i64, disk: i64) -> (task: Task)
 }
 
 Event :: struct {
-	id:        uuid.Identifier,
+	id:        string,
 	state:     State,
 	timestamp: time.Time `fmt:"-"`,
 	task:      Task,
 }
 
 new_event :: proc(task: Task) -> (event: Event) {
-	event.id = uuid.generate_v4()
+	event.id = uuid.to_string(uuid.generate_v4())
 	event.state = .Pending
 	event.timestamp = time.now()
 	event.task = task
@@ -80,15 +80,15 @@ new_event :: proc(task: Task) -> (event: Event) {
 
 Config :: struct {
 	name:           string,
-	attach_stdin:   bool,
-	attach_stdout:  bool,
-	attach_stderr:  bool,
-	cmd:            []string,
+	attach_stdin:   bool `fmt:"-"`,
+	attach_stdout:  bool `fmt:"-"`,
+	attach_stderr:  bool `fmt:"-"`,
+	cmd:            []string `fmt:"-"`,
 	image:          string,
-	memory:         i64,
-	disk:           i64,
+	memory:         i64 `fmt:"-"`,
+	disk:           i64 `fmt:"-"`,
 	env:            []string,
-	restart_policy: string,
+	restart_policy: string `fmt:"-"`,
 }
 
 new_config :: proc(t: ^Task) -> (config: Config) {
