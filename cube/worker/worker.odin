@@ -18,12 +18,17 @@ Worker :: struct {
 	task_count: int,
 }
 
-new :: proc(name: string) -> (w: Worker) {
+init :: proc(name: string) -> (w: Worker) {
 	w.name = name
 	queue.init(&w.queue)
 	w.db = make(map[uuid.Identifier]^task.Task)
 	w.task_count = 0
 	return w
+}
+
+deinit :: proc(w: ^Worker) {
+	queue.destroy(&w.queue)
+	delete_map(w.db)
 }
 
 add_task :: proc(w: ^Worker, t: task.Task) {

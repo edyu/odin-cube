@@ -15,19 +15,29 @@ Manager :: struct {
 	task_worker_map: map[uuid.Identifier]string,
 }
 
-new :: proc(workers: []string) -> (manager: Manager) {
-	queue.init(&manager.pending)
-	manager.task_db = make(map[string][]^task.Task)
-	manager.event_db = make(map[string][]^task.Event)
-	manager.worker_task_map = make(map[string][]uuid.Identifier)
-	manager.task_worker_map = make(map[uuid.Identifier]string)
-	manager.workers = make([dynamic]string)
+init :: proc(workers: []string) -> (m: Manager) {
+	queue.init(&m.pending)
+	m.task_db = make(map[string][]^task.Task)
+	m.event_db = make(map[string][]^task.Event)
+	m.worker_task_map = make(map[string][]uuid.Identifier)
+	m.task_worker_map = make(map[uuid.Identifier]string)
+	m.workers = make([dynamic]string)
 	for w in workers {
-		append(&manager.workers, w)
+		append(&m.workers, w)
 	}
 
-	return manager
+	return m
 }
+
+deinit :: proc(m: ^Manager) {
+	queue.destroy(&m.pending)
+	delete_map(m.task_db)
+	delete_map(m.event_db)
+	delete_map(m.worker_task_map)
+	delete_map(m.task_worker_map)
+	delete(m.workers)
+}
+
 
 select_worker :: proc(m: ^Manager) {
 	fmt.println("I will select an appropriate worker")

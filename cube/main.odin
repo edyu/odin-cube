@@ -44,14 +44,16 @@ main :: proc() {
 	fmt.printf("task: %v\n", t)
 	fmt.printf("task event: %v\n", te)
 
-	w := worker.new("worker-1")
+	w := worker.init("worker-1")
+	defer worker.deinit(&w)
 	fmt.printf("worker: %v\n", w)
 	worker.collect_stats(&w)
 	worker.run_task(&w)
 	worker.start_task(&w, &t)
 	worker.stop_task(&w, &t)
 
-	m := manager.new([]string{w.name})
+	m := manager.init([]string{w.name})
+	defer manager.deinit(&m)
 
 	fmt.printf("manager: %v\n", m)
 	manager.select_worker(&m)
