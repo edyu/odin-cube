@@ -1,0 +1,41 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: run
+
+  run:
+    deps:
+      - build
+    cmds:
+      - bin/cube {{.CLI_ARGS}}
+    aliases:
+      - r
+    silent: true
+    method: none
+
+  build:
+    cmds:
+      - mkdir -p bin
+      - odin build cube -out=bin/cube
+    aliases:
+      - b
+    silent: true
+    sources:
+      - './cube/**/*.odin'
+    generates:
+      - bin/cube
+
+  test:
+    cmds:
+      - odin test cube -out=bin/cube-test
+    aliases:
+      - t
+    silent: true
+    sources:
+      - './cube/**/*.odin'
+    generates:
+      - bin/cube-test
+
+interval: 250ms
