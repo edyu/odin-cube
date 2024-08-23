@@ -34,21 +34,21 @@ State :: enum u8 {
 }
 
 Task :: struct {
-	id:             uuid.Identifier,
+	id:             uuid.Identifier `fmt:"v"`,
 	container_id:   string,
 	name:           string,
 	state:          State,
 	image:          string,
-	cpu:            f64,
-	memory:         i64,
-	disk:           i64,
-	exposed_ports:  connection.Port_Set,
-	host_ports:     connection.Port_Map,
-	port_bindings:  map[string]string,
+	cpu:            f64 `fmt:"-"`,
+	memory:         i64 `fmt:"-"`,
+	disk:           i64 `fmt:"-"`,
+	exposed_ports:  connection.Port_Set `fmt:"-"`,
+	host_ports:     connection.Port_Map `fmt:"-"`,
+	port_bindings:  map[string]string `fmt:"-"`,
 	restart_policy: string,
-	start_time:     time.Time,
-	finish_time:    time.Time,
-	restart_count:  int,
+	start_time:     time.Time `fmt:"-"`,
+	finish_time:    time.Time `fmt:"-"`,
+	restart_count:  int `fmt:"-"`,
 }
 
 new :: proc(name: string, image: string, memory: i64, disk: i64) -> (task: Task) {
@@ -65,7 +65,7 @@ new :: proc(name: string, image: string, memory: i64, disk: i64) -> (task: Task)
 Event :: struct {
 	id:        uuid.Identifier,
 	state:     State,
-	timestamp: time.Time,
+	timestamp: time.Time `fmt:"-"`,
 	task:      Task,
 }
 

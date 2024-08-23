@@ -13,8 +13,8 @@ Worker_Error :: struct {
 
 Worker :: struct {
 	name:       string,
-	queue:      queue.Queue(task.Task),
-	db:         map[uuid.Identifier]^task.Task,
+	queue:      queue.Queue(task.Task) `fmt:"-"`,
+	db:         map[uuid.Identifier]^task.Task `fmt:"-"`,
 	task_count: int,
 }
 

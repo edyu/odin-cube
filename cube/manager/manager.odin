@@ -7,12 +7,12 @@ import "core:container/queue"
 import "core:encoding/uuid"
 
 Manager :: struct {
-	pending:         queue.Queue(task.Task),
-	task_db:         map[string][]^task.Task,
-	event_db:        map[string][]^task.Event,
+	pending:         queue.Queue(task.Task) `fmt:"-"`,
+	task_db:         map[string][]^task.Task `fmt:"-"`,
+	event_db:        map[string][]^task.Event `fmt:"-"`,
 	workers:         [dynamic]string,
-	worker_task_map: map[string][]uuid.Identifier,
-	task_worker_map: map[uuid.Identifier]string,
+	worker_task_map: map[string][]uuid.Identifier `fmt:"-"`,
+	task_worker_map: map[uuid.Identifier]string `fmt:"-"`,
 }
 
 init :: proc(workers: []string) -> (m: Manager) {
