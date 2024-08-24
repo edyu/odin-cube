@@ -9,7 +9,6 @@ import "core:mem"
 import "core:os"
 import "core:time"
 import "docker/client"
-import "libcurl"
 import "manager"
 import "node"
 import "task"
@@ -77,51 +76,6 @@ main :: proc() {
 	time.sleep(time.Second * 5)
 	fmt.printf("stopping container %s\n", create_result.container_id)
 	_ = stop_container(&docker_task, create_result.container_id)
-
-	code := libcurl.curl_global_init(libcurl.CURL_GLOBAL_ALL)
-	if code != libcurl.CURLcode.CURLE_OK {
-		fmt.eprintf("curl_global_init() failed: %s\n", libcurl.curl_easy_strerror(code))
-	}
-	fmt.printf("curl: code=%v\n", code)
-	curl := libcurl.curl_easy_init()
-	if curl != nil {
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_URL,
-			"https://jsonplaceholder.typicode.com/users",
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
-			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
-		} else {
-			code = libcurl.curl_easy_setopt(
-				curl,
-				libcurl.CURLoption.CURLOPT_POSTFIELDS,
-				"name=ed&email=ed@example.com",
-			)
-			if code != libcurl.CURLcode.CURLE_OK {
-				fmt.eprintf(
-					"curl_easy_setopt(POSTFIELDS) failed: %s\n",
-					libcurl.curl_easy_strerror(code),
-				)
-			} else {
-				code = libcurl.curl_easy_perform(curl)
-				if code != libcurl.CURLcode.CURLE_OK {
-					fmt.eprintf(
-						"curl_easy_perform() failed: %s\n",
-						libcurl.curl_easy_strerror(code),
-					)
-				}
-			}
-		}
-		// libcurl.curl_easy_setopt(
-		// 	curl,
-		// 	libcurl.CURLoption.CURLOPT_POSTFIELDS,
-		// 	"name=ed/email=ed@example.com",
-		// )
-		libcurl.curl_easy_cleanup(curl)
-	}
-
-	libcurl.curl_global_cleanup()
 }
 
 create_container :: proc() -> (docker: task.Docker, result: task.Docker_Result) {
@@ -131,7 +85,7 @@ create_container :: proc() -> (docker: task.Docker, result: task.Docker_Result) 
 		[]string{"POSTGRES_USER=cube", "POSTGRES_PASSWORD=secret"},
 	)
 
-	dc, _ := client.new_env_client()
+	dc, _ := client.init()
 	docker.client = &dc
 	docker.config = c
 

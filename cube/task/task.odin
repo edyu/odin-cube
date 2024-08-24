@@ -11,6 +11,7 @@ import "core:encoding/uuid"
 import "../docker/client"
 import "../docker/connection"
 import "../docker/container"
+import "../docker/image"
 
 Unreachable_Error :: struct {}
 
@@ -120,7 +121,7 @@ Docker_Result :: struct {
 }
 
 new_docker :: proc(config: ^Config) -> (docker: Docker) {
-	dc, _ := client.new_env_client()
+	dc, _ := client.init()
 	docker.client = &dc
 	docker.config = config^
 
@@ -128,8 +129,7 @@ new_docker :: proc(config: ^Config) -> (docker: Docker) {
 }
 
 docker_run :: proc(d: ^Docker) -> Docker_Result {
-	// ctx := context.Background()
-	reader, err := client.image_pull(d.config.image)
+	reader, err := client.image_pull(d.config.image, image.Pull_Options{})
 	if err != nil {
 		fmt.printf("Error pulling image %s: %v\n", d.config.image, err)
 		return Docker_Result{err, "", "", ""}

@@ -1,8 +1,11 @@
 package client
 
+import "../../libcurl"
 import "../container"
+import "../image"
 import "core:fmt"
 import "core:io"
+import "core:strings"
 
 Client :: struct {
 	scheme:              string,
@@ -14,21 +17,77 @@ Client :: struct {
 	custom_http_Headers: map[string]string,
 }
 
-Image_Pull_Options :: struct {}
-
 Client_Error :: union {
-	Docker_Error,
+	Curl_Error,
+	Curl_Init_Error,
 	container.Container_Error,
 }
 
-Docker_Error :: struct {}
+Curl_Init_Error :: struct {}
 
-new_env_client :: proc() -> (client: Client, err: Client_Error) {
+Curl_Error :: struct {
+	code: libcurl.CURLcode,
+}
+
+init :: proc() -> (client: Client, err: Client_Error) {
+	code := libcurl.curl_global_init(libcurl.CURL_GLOBAL_ALL)
+	if code != libcurl.CURLcode.CURLE_OK {
+		fmt.eprintf("curl_global_init() failed: %s\n", libcurl.curl_easy_strerror(code))
+		err = Curl_Error{code}
+	}
 	return
 }
 
-image_pull :: proc(image: string) -> (reader: io.Reader, err: Client_Error) {
+deinit :: proc(client: ^Client) {
+	libcurl.curl_global_cleanup()
+}
+
+DOCKER_SOCKET :: "/var/run/docker.sock"
+
+API_PREFIX :: "http://localhost/v1.46/"
+
+image_pull :: proc(
+	name: string,
+	options: image.Pull_Options,
+) -> (
+	reader: io.Reader,
+	err: Client_Error,
+) {
 	fmt.printf("docker image pull\n")
+	curl := libcurl.curl_easy_init()
+	defer libcurl.curl_easy_cleanup(curl)
+	if curl != nil {
+		code := libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
+			DOCKER_SOCKET,
+		)
+		url: strings.Builder
+		defer strings.builder_destroy(&url)
+		strings.write_string(&url, API_PREFIX)
+		strings.write_string(&url, "/images/create?fromImage=")
+		strings.write_string(&url, name)
+
+		code = libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_URL,
+			strings.to_cstring(&url),
+		)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+		code = libcurl.curl_easy_perform(curl)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+	} else {
+		err = Curl_Init_Error{}
+	}
+
 	return
 }
 
