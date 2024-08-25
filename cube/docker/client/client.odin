@@ -51,6 +51,8 @@ API_PREFIX :: "http://localhost/v1.46"
 
 JSON_HEADER :: "Content-Type: application/json"
 
+EMPTY_BODY :: "{}"
+
 Container_Response :: struct {
 	id: string,
 }
@@ -100,7 +102,7 @@ image_pull :: proc(
 			return
 		}
 
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, "{}")
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, EMPTY_BODY)
 		if code != libcurl.CURLcode.CURLE_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
@@ -201,6 +203,64 @@ container_create :: proc(
 
 container_start :: proc(id: string, options: container.Start_Options) -> (err: Client_Error) {
 	fmt.printf("docker container start %s\n", id)
+	curl := libcurl.curl_easy_init()
+	defer libcurl.curl_easy_cleanup(curl)
+	if curl != nil {
+		code := libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
+			DOCKER_SOCKET,
+		)
+		hs: ^libcurl.curl_slist
+		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
+		defer libcurl.curl_slist_free_all(hs)
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
+			err = Curl_Error{code}
+			return
+		}
+
+		url: strings.Builder
+		defer strings.builder_destroy(&url)
+		strings.write_string(&url, API_PREFIX)
+		strings.write_string(&url, "/containers/")
+		strings.write_string(&url, id)
+		strings.write_string(&url, "/start")
+		code = libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_URL,
+			strings.to_cstring(&url),
+		)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, EMPTY_BODY)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_perform(curl)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+	} else {
+		err = Curl_Init_Error{}
+	}
+
 	return
 }
 
@@ -222,11 +282,123 @@ std_copy :: proc(dstout, dsterr: io.Writer, src: io.Reader) -> (writtent: i64, e
 
 container_stop :: proc(id: string, options: container.Stop_Options) -> (err: Client_Error) {
 	fmt.printf("docker container stop %s\n", id)
+	curl := libcurl.curl_easy_init()
+	defer libcurl.curl_easy_cleanup(curl)
+	if curl != nil {
+		code := libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
+			DOCKER_SOCKET,
+		)
+		hs: ^libcurl.curl_slist
+		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
+		defer libcurl.curl_slist_free_all(hs)
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
+			err = Curl_Error{code}
+			return
+		}
+
+		url: strings.Builder
+		defer strings.builder_destroy(&url)
+		strings.write_string(&url, API_PREFIX)
+		strings.write_string(&url, "/containers/")
+		strings.write_string(&url, id)
+		strings.write_string(&url, "/stop")
+		code = libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_URL,
+			strings.to_cstring(&url),
+		)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, EMPTY_BODY)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_perform(curl)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+	} else {
+		err = Curl_Init_Error{}
+	}
+
 	return
 }
 
 container_remove :: proc(id: string, options: container.Remove_Options) -> (err: Client_Error) {
 	fmt.printf("docker container remove %s\n", id)
+	curl := libcurl.curl_easy_init()
+	defer libcurl.curl_easy_cleanup(curl)
+	if curl != nil {
+		code := libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
+			DOCKER_SOCKET,
+		)
+		hs: ^libcurl.curl_slist
+		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
+		defer libcurl.curl_slist_free_all(hs)
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
+			err = Curl_Error{code}
+			return
+		}
+
+		url: strings.Builder
+		defer strings.builder_destroy(&url)
+		strings.write_string(&url, API_PREFIX)
+		strings.write_string(&url, "/containers/")
+		strings.write_string(&url, id)
+		code = libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_URL,
+			strings.to_cstring(&url),
+		)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_CUSTOMREQUEST, "DELETE")
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_setopt(DELETE) failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_perform(curl)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+	} else {
+		err = Curl_Init_Error{}
+	}
+
 	return
 }
 
