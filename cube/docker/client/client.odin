@@ -47,6 +47,7 @@ deinit :: proc(client: ^Client) {
 DOCKER_SOCKET :: "/var/run/docker.sock"
 
 API_PREFIX :: "http://localhost/v1.46"
+// API_PREFIX :: "http://docker"
 
 JSON_HEADER :: "Content-Type: application/json"
 
@@ -95,6 +96,16 @@ image_pull :: proc(
 		)
 		if code != libcurl.CURLcode.CURLE_OK {
 			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, "{}")
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
 			err = Curl_Error{code}
 			return
 		}
