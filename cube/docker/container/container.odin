@@ -5,26 +5,24 @@ import "core:io"
 
 Container :: struct {}
 
+Container_Error :: struct {}
+
 Restart_Policy :: struct {
-	name: string,
-}
-
-Resources :: struct {
-	memory: i64,
-}
-
-Config :: struct {
-	image: string,
-	env:   []string,
+	name:                string `json:"Name"`,
+	maximum_retry_count: int `json:"MaximumRetryCount"`,
 }
 
 Host_Config :: struct {
-	restart_policy:    Restart_Policy,
-	resources:         Resources,
-	publish_all_ports: bool,
+	memory:            i64 `json:"Memory"`,
+	publish_all_ports: bool `json:"PublishAllPorts"`,
+	restart_policy:    Restart_Policy `json:"RestartPolicy"`,
 }
 
-Container_Error :: struct {}
+Create_Options :: struct {
+	env:         []string `json:"Env"`,
+	image:       string `json:"Image"`,
+	host_config: Host_Config `json:"HostConfig"`,
+}
 
 Start_Options :: struct {}
 

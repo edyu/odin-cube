@@ -137,15 +137,15 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 	stdout := os.stream_from_handle(os.stdout)
 	io.copy(stdout, reader)
 
-	rp := container.Restart_Policy{d.config.restart_policy}
+	options := container.Create_Options{}
 
-	r := container.Resources{d.config.memory}
+	options.env = d.config.env
+	options.image = d.config.image
+	rp := container.Restart_Policy{d.config.restart_policy, 0}
+	hc := container.Host_Config{d.config.memory, true, rp}
+	options.host_config = hc
 
-	cc := container.Config{d.config.image, d.config.env}
-
-	hc := container.Host_Config{rp, r, true}
-
-	resp, cerr := client.container_create(cc, hc, d.config.name)
+	resp, cerr := client.container_create(d.config.name, options)
 	if cerr != nil {
 		fmt.printf("Error creating container using image %s: %v\n", d.config.image, cerr)
 		return Docker_Result{cerr, "create", "", "failure"}

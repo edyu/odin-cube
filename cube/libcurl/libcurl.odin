@@ -137,11 +137,13 @@ CURLcode :: enum c.int {
 
 CURLOPTTYPE_OBJECTPOINT: c.int : 10000
 CURLOPTTYPE_STRINGPOINT :: CURLOPTTYPE_OBJECTPOINT
+CURLOPTTYPE_SLISTPOINT :: CURLOPTTYPE_OBJECTPOINT
 
 CURLoption :: enum c.int {
 	CURLOPT_URL              = CURLOPTTYPE_STRINGPOINT + 2,
 	CURLOPT_POSTFIELDS       = CURLOPTTYPE_OBJECTPOINT + 15,
 	CURLOPT_UNIX_SOCKET_PATH = CURLOPTTYPE_STRINGPOINT + 231,
+	CURLOPT_HTTPHEADER       = CURLOPTTYPE_SLISTPOINT + 23,
 }
 
 CURL_GLOBAL_SSL: c.long : 1 << 0
@@ -150,10 +152,15 @@ CURL_GLOBAL_ALL: c.long : CURL_GLOBAL_SSL | CURL_GLOBAL_WIN32
 
 CURL :: struct {}
 
+curl_slist :: struct {
+	data: cstring,
+	next: ^curl_slist,
+}
+
 foreign libcurl {
 	curl_global_init :: proc(flags: c.long) -> CURLcode ---
 	curl_easy_init :: proc() -> ^CURL ---
-	curl_easy_setopt :: proc(curl: ^CURL, opt: CURLoption, data: cstring) -> CURLcode ---
+	curl_easy_setopt :: proc(curl: ^CURL, opt: CURLoption, #c_vararg data: ..any) -> CURLcode ---
 	curl_easy_perform :: proc(curl: ^CURL) -> CURLcode ---
 	curl_easy_cleanup :: proc(curl: ^CURL) ---
 	// curl_easy_init :: proc() -> rawptr ---
@@ -162,5 +169,7 @@ foreign libcurl {
 	// curl_easy_cleanup :: proc(curl: rawptr) ---
 	curl_easy_strerror :: proc(code: CURLcode) -> cstring ---
 	curl_global_cleanup :: proc() ---
+	curl_slist_append :: proc(list: ^curl_slist, header: cstring) -> ^curl_slist ---
+	curl_slist_free_all :: proc(list: ^curl_slist) ---
 }
 
