@@ -35,7 +35,7 @@ State :: enum u8 {
 }
 
 Task :: struct {
-	id:             uuid.Identifier `fmt:"v"`,
+	id:             uuid.Identifier `fmt:"q"`,
 	container_id:   string,
 	name:           string,
 	state:          State,

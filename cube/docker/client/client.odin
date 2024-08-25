@@ -3,6 +3,7 @@ package client
 import "../../libcurl"
 import "../container"
 import "../image"
+import "core:c"
 import "core:encoding/json"
 import "core:fmt"
 import "core:io"
@@ -23,12 +24,18 @@ Client_Error :: union {
 	Curl_Init_Error,
 	container.Container_Error,
 	json.Marshal_Error,
+	Response_Error,
 }
 
 Curl_Init_Error :: struct {}
 
 Curl_Error :: struct {
 	code: libcurl.CURLcode,
+}
+
+Response_Error :: struct {
+	code:   int,
+	detail: string,
 }
 
 init :: proc() -> (client: Client, err: Client_Error) {
@@ -125,6 +132,48 @@ image_pull :: proc(
 	return
 }
 
+Callback_Data :: struct {
+	session:  ^libcurl.CURL,
+	response: ^Container_Response,
+	error:    ^Client_Error,
+}
+
+container_create_callback :: proc(
+	buffer: rawptr,
+	size: c.int,
+	nmemb: c.int,
+	data: ^Callback_Data,
+) -> c.int {
+	fmt.println("****************")
+	fmt.printf("size: %d\n", size)
+	fmt.printf("nmemb: %d\n", nmemb)
+	fmt.printf("actual size: %d\n", size * nmemb)
+	reply := strings.string_from_ptr(transmute([^]u8)buffer, int(size * nmemb))
+	fmt.printf("DATA: %s\n", reply)
+	status: c.int
+	code := libcurl.curl_easy_getinfo(
+		data.session,
+		libcurl.CURLINFO.CURLINFO_RESPONSE_CODE,
+		&status,
+	)
+	if code != libcurl.CURLcode.CURLE_OK {
+		fmt.eprintf(
+			"curl_easy_getinfo(RESPONSE_CODE) failed: %s\n",
+			libcurl.curl_easy_strerror(code),
+		)
+	} else {
+		fmt.println("status code:", status)
+		if status >= 400 {
+			data.error^ = Response_Error{int(status), reply}
+		} else {
+			fmt.println("REPLY:", reply)
+		}
+	}
+	fmt.println("****************")
+
+	return size * nmemb
+}
+
 container_create :: proc(
 	name: string,
 	options: container.Create_Options,
@@ -183,6 +232,32 @@ container_create :: proc(
 		if code != libcurl.CURLcode.CURLE_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
+			err = Curl_Error{code}
+			return
+		}
+
+		data := Callback_Data{curl, &resp, &err}
+
+		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_WRITEDATA, &data)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(WRITEDATA) failed: %s\n",
+				libcurl.curl_easy_strerror(code),
+			)
+			err = Curl_Error{code}
+			return
+		}
+
+		code = libcurl.curl_easy_setopt(
+			curl,
+			libcurl.CURLoption.CURLOPT_WRITEFUNCTION,
+			container_create_callback,
+		)
+		if code != libcurl.CURLcode.CURLE_OK {
+			fmt.eprintf(
+				"curl_easy_setopt(WRITEFUNCTION) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
 			)
 			err = Curl_Error{code}

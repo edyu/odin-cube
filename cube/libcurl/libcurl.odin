@@ -138,13 +138,23 @@ CURLcode :: enum c.int {
 CURLOPTTYPE_OBJECTPOINT: c.int : 10000
 CURLOPTTYPE_STRINGPOINT :: CURLOPTTYPE_OBJECTPOINT
 CURLOPTTYPE_SLISTPOINT :: CURLOPTTYPE_OBJECTPOINT
+CURLOPTTYPE_CBPOINT :: CURLOPTTYPE_OBJECTPOINT
+CURLOPTTYPE_FUNCTIONPOINT: c.int : 20000
 
 CURLoption :: enum c.int {
+	CURLOPT_WRITEDATA        = CURLOPTTYPE_CBPOINT + 1,
 	CURLOPT_URL              = CURLOPTTYPE_STRINGPOINT + 2,
+	CURLOPT_WRITEFUNCTION    = CURLOPTTYPE_FUNCTIONPOINT + 11,
 	CURLOPT_POSTFIELDS       = CURLOPTTYPE_OBJECTPOINT + 15,
 	CURLOPT_HTTPHEADER       = CURLOPTTYPE_SLISTPOINT + 23,
 	CURLOPT_CUSTOMREQUEST    = CURLOPTTYPE_STRINGPOINT + 36,
 	CURLOPT_UNIX_SOCKET_PATH = CURLOPTTYPE_STRINGPOINT + 231,
+}
+
+CURLINFO_LONG :: 0x200000
+
+CURLINFO :: enum c.int {
+	CURLINFO_RESPONSE_CODE = CURLINFO_LONG + 2,
 }
 
 CURL_GLOBAL_SSL: c.long : 1 << 0
@@ -168,5 +178,6 @@ foreign libcurl {
 	curl_global_cleanup :: proc() ---
 	curl_slist_append :: proc(list: ^curl_slist, header: cstring) -> ^curl_slist ---
 	curl_slist_free_all :: proc(list: ^curl_slist) ---
+	curl_easy_getinfo :: proc(curl: ^CURL, info: CURLINFO, #c_vararg data: ..any) -> CURLcode ---
 }
 
