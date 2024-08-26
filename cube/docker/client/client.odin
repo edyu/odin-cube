@@ -3,6 +3,7 @@ package client
 import "../../libcurl"
 import "../container"
 import "../image"
+import "base:runtime"
 import "core:c"
 import "core:encoding/json"
 import "core:fmt"
@@ -34,8 +35,8 @@ Curl_Error :: struct {
 }
 
 Response_Error :: struct {
-	code:   int,
-	detail: string,
+	code:    int,
+	message: string,
 }
 
 init :: proc() -> (client: Client, err: Client_Error) {
@@ -138,18 +139,22 @@ Callback_Data :: struct {
 	error:    ^Client_Error,
 }
 
-container_create_callback :: proc(
+Error_Message :: struct {
+	message: string,
+}
+
+Created_Message :: struct {
+	id:       string `json:"Id"`,
+	warnings: []string `json:"Warnings"`,
+}
+
+container_create_callback :: proc "c" (
 	buffer: rawptr,
 	size: c.int,
 	nmemb: c.int,
 	data: ^Callback_Data,
 ) -> c.int {
-	fmt.println("****************")
-	fmt.printf("size: %d\n", size)
-	fmt.printf("nmemb: %d\n", nmemb)
-	fmt.printf("actual size: %d\n", size * nmemb)
-	reply := strings.string_from_ptr(transmute([^]u8)buffer, int(size * nmemb))
-	fmt.printf("DATA: %s\n", reply)
+	context = runtime.default_context()
 	status: c.int
 	code := libcurl.curl_easy_getinfo(
 		data.session,
@@ -162,14 +167,26 @@ container_create_callback :: proc(
 			libcurl.curl_easy_strerror(code),
 		)
 	} else {
-		fmt.println("status code:", status)
+		// fmt.println("status code:", status)
+		reply := strings.string_from_ptr(transmute([^]u8)buffer, int(size * nmemb))
+		// fmt.printf("DATA: %s", reply)
 		if status >= 400 {
-			data.error^ = Response_Error{int(status), reply}
+			m: Error_Message
+			err := json.unmarshal_string(reply, &m)
+			if err != nil {
+				fmt.eprintf("error marshalling: %v\n", err)
+			}
+			data.error^ = Response_Error{int(status), m.message}
 		} else {
-			fmt.println("REPLY:", reply)
+			m: Created_Message
+			err := json.unmarshal_string(reply, &m)
+			if err != nil {
+				fmt.eprintf("error marshalling: %v\n", err)
+			}
+			data.response.id = m.id
+			fmt.println("id:", m.id)
 		}
 	}
-	fmt.println("****************")
 
 	return size * nmemb
 }
