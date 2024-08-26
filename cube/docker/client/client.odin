@@ -61,10 +61,6 @@ JSON_HEADER :: "Content-Type: application/json"
 
 EMPTY_BODY :: "{}"
 
-Container_Response :: struct {
-	id: string,
-}
-
 image_pull :: proc(
 	name: string,
 	options: image.Pull_Options,
@@ -135,17 +131,12 @@ image_pull :: proc(
 
 Callback_Data :: struct {
 	session:  ^libcurl.CURL,
-	response: ^Container_Response,
+	response: ^container.Create_Response,
 	error:    ^Client_Error,
 }
 
 Error_Message :: struct {
 	message: string,
-}
-
-Created_Message :: struct {
-	id:       string `json:"Id"`,
-	warnings: []string `json:"Warnings"`,
 }
 
 container_create_callback :: proc "c" (
@@ -178,13 +169,12 @@ container_create_callback :: proc "c" (
 			}
 			data.error^ = Response_Error{int(status), m.message}
 		} else {
-			m: Created_Message
-			err := json.unmarshal_string(reply, &m)
+			err := json.unmarshal_string(reply, data.response)
 			if err != nil {
-				fmt.eprintf("error marshalling: %v\n", err)
+				fmt.eprintf("error marshalling: %s -> %v\n", reply, err)
 			}
-			data.response.id = m.id
-			fmt.println("id:", m.id)
+			fmt.println("id:", data.response.id)
+			fmt.println("warnings:", data.response.warnings)
 		}
 	}
 
@@ -195,7 +185,7 @@ container_create :: proc(
 	name: string,
 	options: container.Create_Options,
 ) -> (
-	resp: Container_Response,
+	resp: container.Create_Response,
 	err: Client_Error,
 ) {
 	fmt.printf("docker container create\n")

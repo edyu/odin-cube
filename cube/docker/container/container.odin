@@ -24,6 +24,11 @@ Create_Options :: struct {
 	host_config: Host_Config `json:"HostConfig"`,
 }
 
+Create_Response :: struct {
+	id:       string `json:"Id"`,
+	warnings: []string `json:"Warnings"`,
+}
+
 Start_Options :: struct {}
 
 Logs_Options :: struct {
