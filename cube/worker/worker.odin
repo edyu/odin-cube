@@ -14,14 +14,14 @@ Worker_Error :: struct {
 Worker :: struct {
 	name:       string,
 	queue:      queue.Queue(task.Task) `fmt:"-"`,
-	db:         map[uuid.Identifier]^task.Task `fmt:"-"`,
+	db:         map[uuid.Identifier]task.Task `fmt:"-"`,
 	task_count: int,
 }
 
 init :: proc(name: string) -> (w: Worker) {
 	w.name = name
 	queue.init(&w.queue)
-	w.db = make(map[uuid.Identifier]^task.Task)
+	w.db = make(map[uuid.Identifier]task.Task)
 	w.task_count = 0
 	return w
 }
@@ -43,16 +43,15 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 	t, ok := queue.pop_front_safe(&w.queue)
 	if !ok {
 		fmt.println("No tasks in the queue")
-		return task.Docker_Result{}
+		return result
 	}
 
 	task_queued := t
-	fmt.printf("Found task in queue: %v:\n", task_queued)
 
-	task_persisted, dok := w.db[task_queued.id]
-	if !dok {
-		task_persisted = &task_queued
-		w.db[task_queued.id] = &task_queued
+	task_persisted, found := w.db[task_queued.id]
+	if !found {
+		task_persisted = task_queued
+		w.db[task_queued.id] = task_queued
 	}
 
 	if task.valid_state_transition(task_persisted.state, task_queued.state) {
@@ -81,13 +80,13 @@ start_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 		defer delete_string(id)
 		fmt.eprintf("Error running task %s: %v\n", id, result.error)
 		t.state = .Failed
-		w.db[t.id] = t
+		w.db[t.id] = t^
 		return result
 	}
 
 	t.container_id = result.container_id
 	t.state = .Running
-	w.db[t.id] = t
+	w.db[t.id] = t^
 
 	return result
 }
@@ -102,7 +101,7 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	}
 	t.finish_time = time.now()
 	t.state = .Completed
-	w.db[t.id] = t
+	w.db[t.id] = t^
 	id := uuid.to_string(t.id)
 	defer delete_string(id)
 	fmt.printf("Stopped and removed container %v for task %s\n", t.container_id, id)

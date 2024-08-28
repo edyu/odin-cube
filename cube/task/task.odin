@@ -35,7 +35,7 @@ State :: enum u8 {
 }
 
 Task :: struct {
-	id:             uuid.Identifier `fmt:"x"`,
+	id:             uuid.Identifier `fmt:"s"`,
 	container_id:   string,
 	name:           string,
 	state:          State,
@@ -52,26 +52,35 @@ Task :: struct {
 	restart_count:  int `fmt:"-"`,
 }
 
-new :: proc(name: string, image: string, memory: i64, disk: i64) -> (task: Task) {
+new :: proc(name: string, state: State, image: string) -> (task: Task) {
 	task.id = uuid.generate_v4()
 	task.name = name
-	task.state = .Pending
+	task.state = state
 	task.image = image
-	task.memory = memory
-	task.disk = disk
 
 	return task
 }
 
+// new :: proc(name: string, image: string, memory: i64, disk: i64) -> (task: Task) {
+// 	task.id = uuid.generate_v4()
+// 	task.name = name
+// 	task.state = .Pending
+// 	task.image = image
+// 	task.memory = memory
+// 	task.disk = disk
+
+// 	return task
+// }
+
 Event :: struct {
-	id:        string,
+	id:        uuid.Identifier `fmt:"s"`,
 	state:     State,
 	timestamp: time.Time `fmt:"-"`,
 	task:      Task,
 }
 
 new_event :: proc(task: Task) -> (event: Event) {
-	event.id = uuid.to_string(uuid.generate_v4())
+	event.id = uuid.generate_v4()
 	event.state = .Pending
 	event.timestamp = time.now()
 	event.task = task

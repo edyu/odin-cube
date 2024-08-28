@@ -18,6 +18,7 @@ valid_state_transition :: proc(src: State, dst: State) -> bool {
 		.Completed = []State{},
 		.Failed    = []State{},
 	}
+	defer delete(State_Transition_Map)
 	return contains(State_Transition_Map[src], dst)
 }
 
