@@ -1,5 +1,6 @@
 package cube
 
+import "core:c"
 import "core:container/queue"
 import "core:crypto"
 import "core:encoding/uuid"
@@ -7,8 +8,10 @@ import "core:fmt"
 import "core:log"
 import "core:mem"
 import "core:os"
+import "core:strings"
 import "core:time"
 import "docker/client"
+import "libmhd"
 import "manager"
 import "node"
 import "task"
@@ -25,6 +28,43 @@ User_Formatter :: proc(fi: ^fmt.Info, arg: any, verb: rune) -> bool {
 		return false
 	}
 	return true
+}
+
+PAGE: cstring : "<html><head><title>blahblahblah</title></head><body>blah blah blah</body></html>"
+
+ahc_echo :: proc "c" (
+	cls: rawptr,
+	connection: ^libmhd.Connection,
+	url: cstring,
+	method: cstring,
+	version: cstring,
+	upload_data: cstring,
+	upload_data_size: ^c.size_t,
+	ptr: ^rawptr,
+) -> libmhd.Result {
+	@(static) dummy: int
+	page := cstring(cls)
+	if method != "GET" {
+		return .NO
+	}
+	if &dummy != ptr^ {
+		ptr^ = &dummy
+		return .YES
+	}
+	if upload_data_size^ != 0 {
+		return .NO
+	}
+	ptr^ = nil
+
+	response := libmhd.MHD_create_response_from_buffer(
+		len(page),
+		rawptr(page),
+		.RESPMEM_PERSISTENT,
+	)
+
+	ret := libmhd.MHD_queue_response(connection, .HTTP_OK, response)
+	libmhd.MHD_destroy_response(response)
+	return ret
 }
 
 main :: proc() {
@@ -57,6 +97,21 @@ main :: proc() {
 	fmt.set_user_formatters(&formatters)
 	err := fmt.register_user_formatter(type_info_of(uuid.Identifier).id, User_Formatter)
 	assert(err == .None)
+
+	d := libmhd.MHD_start_daemon(
+		.USE_THREAD_PER_CONNECTION,
+		8080,
+		nil,
+		nil,
+		ahc_echo,
+		transmute([^]u8)PAGE,
+		.OPTION_END,
+	)
+	if d == nil {
+		fmt.eprintf("can't start http daemon\n")
+		os.exit(1)
+	}
+	defer libmhd.MHD_stop_daemon(d)
 
 	w := worker.init("worker-1")
 	defer worker.deinit(&w)

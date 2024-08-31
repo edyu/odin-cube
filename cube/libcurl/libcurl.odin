@@ -4,180 +4,182 @@ import "core:c"
 
 foreign import libcurl "system:curl"
 
-CURLcode :: enum c.int {
-	CURLE_OK = 0,
-	CURLE_UNSUPPORTED_PROTOCOL, /* 1 */
-	CURLE_FAILED_INIT, /* 2 */
-	CURLE_URL_MALFORMAT, /* 3 */
-	CURLE_NOT_BUILT_IN, /* 4 - [was obsoleted in August 2007 for
+Code :: enum c.uint {
+	E_OK = 0,
+	E_UNSUPPORTED_PROTOCOL, /* 1 */
+	E_FAILED_INIT, /* 2 */
+	E_URL_MALFORMAT, /* 3 */
+	E_NOT_BUILT_IN, /* 4 - [was obsoleted in August 2007 for
                                     7.17.0, reused in April 2011 for 7.21.5] */
-	CURLE_COULDNT_RESOLVE_PROXY, /* 5 */
-	CURLE_COULDNT_RESOLVE_HOST, /* 6 */
-	CURLE_COULDNT_CONNECT, /* 7 */
-	CURLE_WEIRD_SERVER_REPLY, /* 8 */
-	CURLE_REMOTE_ACCESS_DENIED, /* 9 a service was denied by the server
+	E_COULDNT_RESOLVE_PROXY, /* 5 */
+	E_COULDNT_RESOLVE_HOST, /* 6 */
+	E_COULDNT_CONNECT, /* 7 */
+	E_WEIRD_SERVER_REPLY, /* 8 */
+	E_REMOTE_ACCESS_DENIED, /* 9 a service was denied by the server
                                     due to lack of access - when login fails
                                     this is not returned. */
-	CURLE_FTP_ACCEPT_FAILED, /* 10 - [was obsoleted in April 2006 for
+	E_FTP_ACCEPT_FAILED, /* 10 - [was obsoleted in April 2006 for
                                     7.15.4, reused in Dec 2011 for 7.24.0]*/
-	CURLE_FTP_WEIRD_PASS_REPLY, /* 11 */
-	CURLE_FTP_ACCEPT_TIMEOUT, /* 12 - timeout occurred accepting server
+	E_FTP_WEIRD_PASS_REPLY, /* 11 */
+	E_FTP_ACCEPT_TIMEOUT, /* 12 - timeout occurred accepting server
                                     [was obsoleted in August 2007 for 7.17.0,
                                     reused in Dec 2011 for 7.24.0]*/
-	CURLE_FTP_WEIRD_PASV_REPLY, /* 13 */
-	CURLE_FTP_WEIRD_227_FORMAT, /* 14 */
-	CURLE_FTP_CANT_GET_HOST, /* 15 */
-	CURLE_HTTP2, /* 16 - A problem in the http2 framing layer.
+	E_FTP_WEIRD_PASV_REPLY, /* 13 */
+	E_FTP_WEIRD_227_FORMAT, /* 14 */
+	E_FTP_CANT_GET_HOST, /* 15 */
+	E_HTTP2, /* 16 - A problem in the http2 framing layer.
                                     [was obsoleted in August 2007 for 7.17.0,
                                     reused in July 2014 for 7.38.0] */
-	CURLE_FTP_COULDNT_SET_TYPE, /* 17 */
-	CURLE_PARTIAL_FILE, /* 18 */
-	CURLE_FTP_COULDNT_RETR_FILE, /* 19 */
-	CURLE_OBSOLETE20, /* 20 - NOT USED */
-	CURLE_QUOTE_ERROR, /* 21 - quote command failure */
-	CURLE_HTTP_RETURNED_ERROR, /* 22 */
-	CURLE_WRITE_ERROR, /* 23 */
-	CURLE_OBSOLETE24, /* 24 - NOT USED */
-	CURLE_UPLOAD_FAILED, /* 25 - failed upload "command" */
-	CURLE_READ_ERROR, /* 26 - could not open/read from file */
-	CURLE_OUT_OF_MEMORY, /* 27 */
-	CURLE_OPERATION_TIMEDOUT, /* 28 - the timeout time was reached */
-	CURLE_OBSOLETE29, /* 29 - NOT USED */
-	CURLE_FTP_PORT_FAILED, /* 30 - FTP PORT operation failed */
-	CURLE_FTP_COULDNT_USE_REST, /* 31 - the REST command failed */
-	CURLE_OBSOLETE32, /* 32 - NOT USED */
-	CURLE_RANGE_ERROR, /* 33 - RANGE "command" did not work */
-	CURLE_HTTP_POST_ERROR, /* 34 */
-	CURLE_SSL_CONNECT_ERROR, /* 35 - wrong when connecting with SSL */
-	CURLE_BAD_DOWNLOAD_RESUME, /* 36 - could not resume download */
-	CURLE_FILE_COULDNT_READ_FILE, /* 37 */
-	CURLE_LDAP_CANNOT_BIND, /* 38 */
-	CURLE_LDAP_SEARCH_FAILED, /* 39 */
-	CURLE_OBSOLETE40, /* 40 - NOT USED */
-	CURLE_FUNCTION_NOT_FOUND, /* 41 - NOT USED starting with 7.53.0 */
-	CURLE_ABORTED_BY_CALLBACK, /* 42 */
-	CURLE_BAD_FUNCTION_ARGUMENT, /* 43 */
-	CURLE_OBSOLETE44, /* 44 - NOT USED */
-	CURLE_INTERFACE_FAILED, /* 45 - CURLOPT_INTERFACE failed */
-	CURLE_OBSOLETE46, /* 46 - NOT USED */
-	CURLE_TOO_MANY_REDIRECTS, /* 47 - catch endless re-direct loops */
-	CURLE_UNKNOWN_OPTION, /* 48 - User specified an unknown option */
-	CURLE_SETOPT_OPTION_SYNTAX, /* 49 - Malformed setopt option */
-	CURLE_OBSOLETE50, /* 50 - NOT USED */
-	CURLE_OBSOLETE51, /* 51 - NOT USED */
-	CURLE_GOT_NOTHING, /* 52 - when this is a specific error */
-	CURLE_SSL_ENGINE_NOTFOUND, /* 53 - SSL crypto engine not found */
-	CURLE_SSL_ENGINE_SETFAILED, /* 54 - can not set SSL crypto engine as
+	E_FTP_COULDNT_SET_TYPE, /* 17 */
+	E_PARTIAL_FILE, /* 18 */
+	E_FTP_COULDNT_RETR_FILE, /* 19 */
+	E_OBSOLETE20, /* 20 - NOT USED */
+	E_QUOTE_ERROR, /* 21 - quote command failure */
+	E_HTTP_RETURNED_ERROR, /* 22 */
+	E_WRITE_ERROR, /* 23 */
+	E_OBSOLETE24, /* 24 - NOT USED */
+	E_UPLOAD_FAILED, /* 25 - failed upload "command" */
+	E_READ_ERROR, /* 26 - could not open/read from file */
+	E_OUT_OF_MEMORY, /* 27 */
+	E_OPERATION_TIMEDOUT, /* 28 - the timeout time was reached */
+	E_OBSOLETE29, /* 29 - NOT USED */
+	E_FTP_PORT_FAILED, /* 30 - FTP PORT operation failed */
+	E_FTP_COULDNT_USE_REST, /* 31 - the REST command failed */
+	E_OBSOLETE32, /* 32 - NOT USED */
+	E_RANGE_ERROR, /* 33 - RANGE "command" did not work */
+	E_HTTP_POST_ERROR, /* 34 */
+	E_SSL_CONNECT_ERROR, /* 35 - wrong when connecting with SSL */
+	E_BAD_DOWNLOAD_RESUME, /* 36 - could not resume download */
+	E_FILE_COULDNT_READ_FILE, /* 37 */
+	E_LDAP_CANNOT_BIND, /* 38 */
+	E_LDAP_SEARCH_FAILED, /* 39 */
+	E_OBSOLETE40, /* 40 - NOT USED */
+	E_FUNCTION_NOT_FOUND, /* 41 - NOT USED starting with 7.53.0 */
+	E_ABORTED_BY_CALLBACK, /* 42 */
+	E_BAD_FUNCTION_ARGUMENT, /* 43 */
+	E_OBSOLETE44, /* 44 - NOT USED */
+	E_INTERFACE_FAILED, /* 45 - OPT_INTERFACE failed */
+	E_OBSOLETE46, /* 46 - NOT USED */
+	E_TOO_MANY_REDIRECTS, /* 47 - catch endless re-direct loops */
+	E_UNKNOWN_OPTION, /* 48 - User specified an unknown option */
+	E_SETOPT_OPTION_SYNTAX, /* 49 - Malformed setopt option */
+	E_OBSOLETE50, /* 50 - NOT USED */
+	E_OBSOLETE51, /* 51 - NOT USED */
+	E_GOT_NOTHING, /* 52 - when this is a specific error */
+	E_SSL_ENGINE_NOTFOUND, /* 53 - SSL crypto engine not found */
+	E_SSL_ENGINE_SETFAILED, /* 54 - can not set SSL crypto engine as
                                     default */
-	CURLE_SEND_ERROR, /* 55 - failed sending network data */
-	CURLE_RECV_ERROR, /* 56 - failure in receiving network data */
-	CURLE_OBSOLETE57, /* 57 - NOT IN USE */
-	CURLE_SSL_CERTPROBLEM, /* 58 - problem with the local certificate */
-	CURLE_SSL_CIPHER, /* 59 - could not use specified cipher */
-	CURLE_PEER_FAILED_VERIFICATION, /* 60 - peer's certificate or fingerprint
+	E_SEND_ERROR, /* 55 - failed sending network data */
+	E_RECV_ERROR, /* 56 - failure in receiving network data */
+	E_OBSOLETE57, /* 57 - NOT IN USE */
+	E_SSL_CERTPROBLEM, /* 58 - problem with the local certificate */
+	E_SSL_CIPHER, /* 59 - could not use specified cipher */
+	E_PEER_FAILED_VERIFICATION, /* 60 - peer's certificate or fingerprint
                                      was not verified fine */
-	CURLE_BAD_CONTENT_ENCODING, /* 61 - Unrecognized/bad encoding */
-	CURLE_OBSOLETE62, /* 62 - NOT IN USE since 7.82.0 */
-	CURLE_FILESIZE_EXCEEDED, /* 63 - Maximum file size exceeded */
-	CURLE_USE_SSL_FAILED, /* 64 - Requested FTP SSL level failed */
-	CURLE_SEND_FAIL_REWIND, /* 65 - Sending the data requires a rewind
+	E_BAD_CONTENT_ENCODING, /* 61 - Unrecognized/bad encoding */
+	E_OBSOLETE62, /* 62 - NOT IN USE since 7.82.0 */
+	E_FILESIZE_EXCEEDED, /* 63 - Maximum file size exceeded */
+	E_USE_SSL_FAILED, /* 64 - Requested FTP SSL level failed */
+	E_SEND_FAIL_REWIND, /* 65 - Sending the data requires a rewind
                                     that failed */
-	CURLE_SSL_ENGINE_INITFAILED, /* 66 - failed to initialise ENGINE */
-	CURLE_LOGIN_DENIED, /* 67 - user, password or similar was not
+	E_SSL_ENGINE_INITFAILED, /* 66 - failed to initialise ENGINE */
+	E_LOGIN_DENIED, /* 67 - user, password or similar was not
                                     accepted and we failed to login */
-	CURLE_TFTP_NOTFOUND, /* 68 - file not found on server */
-	CURLE_TFTP_PERM, /* 69 - permission problem on server */
-	CURLE_REMOTE_DISK_FULL, /* 70 - out of disk space on server */
-	CURLE_TFTP_ILLEGAL, /* 71 - Illegal TFTP operation */
-	CURLE_TFTP_UNKNOWNID, /* 72 - Unknown transfer ID */
-	CURLE_REMOTE_FILE_EXISTS, /* 73 - File already exists */
-	CURLE_TFTP_NOSUCHUSER, /* 74 - No such user */
-	CURLE_OBSOLETE75, /* 75 - NOT IN USE since 7.82.0 */
-	CURLE_OBSOLETE76, /* 76 - NOT IN USE since 7.82.0 */
-	CURLE_SSL_CACERT_BADFILE, /* 77 - could not load CACERT file, missing
+	E_TFTP_NOTFOUND, /* 68 - file not found on server */
+	E_TFTP_PERM, /* 69 - permission problem on server */
+	E_REMOTE_DISK_FULL, /* 70 - out of disk space on server */
+	E_TFTP_ILLEGAL, /* 71 - Illegal TFTP operation */
+	E_TFTP_UNKNOWNID, /* 72 - Unknown transfer ID */
+	E_REMOTE_FILE_EXISTS, /* 73 - File already exists */
+	E_TFTP_NOSUCHUSER, /* 74 - No such user */
+	E_OBSOLETE75, /* 75 - NOT IN USE since 7.82.0 */
+	E_OBSOLETE76, /* 76 - NOT IN USE since 7.82.0 */
+	E_SSL_CACERT_BADFILE, /* 77 - could not load CACERT file, missing
                                     or wrong format */
-	CURLE_REMOTE_FILE_NOT_FOUND, /* 78 - remote file not found */
-	CURLE_SSH, /* 79 - error from the SSH layer, somewhat
+	E_REMOTE_FILE_NOT_FOUND, /* 78 - remote file not found */
+	E_SSH, /* 79 - error from the SSH layer, somewhat
                                     generic so the error message will be of
                                     interest when this has happened */
-	CURLE_SSL_SHUTDOWN_FAILED, /* 80 - Failed to shut down the SSL
+	E_SSL_SHUTDOWN_FAILED, /* 80 - Failed to shut down the SSL
                                     connection */
-	CURLE_AGAIN, /* 81 - socket is not ready for send/recv,
+	E_AGAIN, /* 81 - socket is not ready for send/recv,
                                     wait till it is ready and try again (Added
                                     in 7.18.2) */
-	CURLE_SSL_CRL_BADFILE, /* 82 - could not load CRL file, missing or
+	E_SSL_CRL_BADFILE, /* 82 - could not load CRL file, missing or
                                     wrong format (Added in 7.19.0) */
-	CURLE_SSL_ISSUER_ERROR, /* 83 - Issuer check failed.  (Added in
+	E_SSL_ISSUER_ERROR, /* 83 - Issuer check failed.  (Added in
                                     7.19.0) */
-	CURLE_FTP_PRET_FAILED, /* 84 - a PRET command failed */
-	CURLE_RTSP_CSEQ_ERROR, /* 85 - mismatch of RTSP CSeq numbers */
-	CURLE_RTSP_SESSION_ERROR, /* 86 - mismatch of RTSP Session Ids */
-	CURLE_FTP_BAD_FILE_LIST, /* 87 - unable to parse FTP file list */
-	CURLE_CHUNK_FAILED, /* 88 - chunk callback reported error */
-	CURLE_NO_CONNECTION_AVAILABLE, /* 89 - No connection available, the
+	E_FTP_PRET_FAILED, /* 84 - a PRET command failed */
+	E_RTSP_CSEQ_ERROR, /* 85 - mismatch of RTSP CSeq numbers */
+	E_RTSP_SESSION_ERROR, /* 86 - mismatch of RTSP Session Ids */
+	E_FTP_BAD_FILE_LIST, /* 87 - unable to parse FTP file list */
+	E_CHUNK_FAILED, /* 88 - chunk callback reported error */
+	E_NO_CONNECTION_AVAILABLE, /* 89 - No connection available, the
                                     session will be queued */
-	CURLE_SSL_PINNEDPUBKEYNOTMATCH, /* 90 - specified pinned public key did not
+	E_SSL_PINNEDPUBKEYNOTMATCH, /* 90 - specified pinned public key did not
                                      match */
-	CURLE_SSL_INVALIDCERTSTATUS, /* 91 - invalid certificate status */
-	CURLE_HTTP2_STREAM, /* 92 - stream error in HTTP/2 framing layer
+	E_SSL_INVALIDCERTSTATUS, /* 91 - invalid certificate status */
+	E_HTTP2_STREAM, /* 92 - stream error in HTTP/2 framing layer
                                     */
-	CURLE_RECURSIVE_API_CALL, /* 93 - an api function was called from
+	E_RECURSIVE_API_CALL, /* 93 - an api function was called from
                                     inside a callback */
-	CURLE_AUTH_ERROR, /* 94 - an authentication function returned an
+	E_AUTH_ERROR, /* 94 - an authentication function returned an
                                     error */
-	CURLE_HTTP3, /* 95 - An HTTP/3 layer problem */
-	CURLE_QUIC_CONNECT_ERROR, /* 96 - QUIC connection error */
-	CURLE_PROXY, /* 97 - proxy handshake error */
-	CURLE_SSL_CLIENTCERT, /* 98 - client-side certificate required */
-	CURLE_UNRECOVERABLE_POLL, /* 99 - poll/select returned fatal error */
-	CURLE_TOO_LARGE, /* 100 - a value/data met its maximum */
-	CURLE_ECH_REQUIRED, /* 101 - ECH tried but failed */
-	CURL_LAST, /* never use! */
+	E_HTTP3, /* 95 - An HTTP/3 layer problem */
+	E_QUIC_CONNECT_ERROR, /* 96 - QUIC connection error */
+	E_PROXY, /* 97 - proxy handshake error */
+	E_SSL_CLIENTCERT, /* 98 - client-side certificate required */
+	E_UNRECOVERABLE_POLL, /* 99 - poll/select returned fatal error */
+	E_TOO_LARGE, /* 100 - a value/data met its maximum */
+	E_ECH_REQUIRED, /* 101 - ECH tried but failed */
+	LAST, /* never use! */
 }
 
-CURLOPTTYPE_OBJECTPOINT: c.int : 10000
-CURLOPTTYPE_STRINGPOINT :: CURLOPTTYPE_OBJECTPOINT
-CURLOPTTYPE_SLISTPOINT :: CURLOPTTYPE_OBJECTPOINT
-CURLOPTTYPE_CBPOINT :: CURLOPTTYPE_OBJECTPOINT
-CURLOPTTYPE_FUNCTIONPOINT: c.int : 20000
+OPTTYPE_OBJECTPOINT: c.uint : 10000
+OPTTYPE_STRINGPOINT :: OPTTYPE_OBJECTPOINT
+OPTTYPE_SLISTPOINT :: OPTTYPE_OBJECTPOINT
+OPTTYPE_CBPOINT :: OPTTYPE_OBJECTPOINT
+OPTTYPE_FUNCTIONPOINT: c.uint : 20000
 
-CURLoption :: enum c.int {
-	CURLOPT_WRITEDATA        = CURLOPTTYPE_CBPOINT + 1,
-	CURLOPT_URL              = CURLOPTTYPE_STRINGPOINT + 2,
-	CURLOPT_WRITEFUNCTION    = CURLOPTTYPE_FUNCTIONPOINT + 11,
-	CURLOPT_POSTFIELDS       = CURLOPTTYPE_OBJECTPOINT + 15,
-	CURLOPT_HTTPHEADER       = CURLOPTTYPE_SLISTPOINT + 23,
-	CURLOPT_CUSTOMREQUEST    = CURLOPTTYPE_STRINGPOINT + 36,
-	CURLOPT_UNIX_SOCKET_PATH = CURLOPTTYPE_STRINGPOINT + 231,
+Option :: enum c.uint {
+	OPT_WRITEDATA        = OPTTYPE_CBPOINT + 1,
+	OPT_URL              = OPTTYPE_STRINGPOINT + 2,
+	OPT_WRITEFUNCTION    = OPTTYPE_FUNCTIONPOINT + 11,
+	OPT_POSTFIELDS       = OPTTYPE_OBJECTPOINT + 15,
+	OPT_HTTPHEADER       = OPTTYPE_SLISTPOINT + 23,
+	OPT_CUSTOMREQUEST    = OPTTYPE_STRINGPOINT + 36,
+	OPT_UNIX_SOCKET_PATH = OPTTYPE_STRINGPOINT + 231,
 }
 
-CURLINFO_LONG :: 0x200000
+INFO_LONG :: 0x200000
 
-CURLINFO :: enum c.int {
-	CURLINFO_RESPONSE_CODE = CURLINFO_LONG + 2,
+Info :: enum c.uint {
+	INFO_RESPONSE_CODE = INFO_LONG + 2,
 }
 
-CURL_GLOBAL_SSL: c.long : 1 << 0
-CURL_GLOBAL_WIN32: c.long : 1 << 1
-CURL_GLOBAL_ALL: c.long : CURL_GLOBAL_SSL | CURL_GLOBAL_WIN32
+Flag :: enum c.uint {
+	GLOBAL_SSL   = 1 << 0,
+	GLOBAL_WIN32 = 1 << 1,
+	GLOBAL_ALL   = GLOBAL_SSL | GLOBAL_WIN32,
+}
 
-CURL :: struct {}
+Session :: struct {}
 
-curl_slist :: struct {
+Slist :: struct {
 	data: cstring,
-	next: ^curl_slist,
+	next: ^Slist,
 }
 
 foreign libcurl {
-	curl_global_init :: proc(flags: c.long) -> CURLcode ---
-	curl_easy_init :: proc() -> ^CURL ---
-	curl_easy_setopt :: proc(curl: ^CURL, opt: CURLoption, #c_vararg data: ..any) -> CURLcode ---
-	curl_easy_perform :: proc(curl: ^CURL) -> CURLcode ---
-	curl_easy_cleanup :: proc(curl: ^CURL) ---
-	curl_easy_strerror :: proc(code: CURLcode) -> cstring ---
+	curl_global_init :: proc(flags: Flag) -> Code ---
+	curl_easy_init :: proc() -> ^Session ---
+	curl_easy_setopt :: proc(curl: ^Session, opt: Option, #c_vararg data: ..any) -> Code ---
+	curl_easy_perform :: proc(curl: ^Session) -> Code ---
+	curl_easy_cleanup :: proc(curl: ^Session) ---
+	curl_easy_strerror :: proc(code: Code) -> cstring ---
 	curl_global_cleanup :: proc() ---
-	curl_slist_append :: proc(list: ^curl_slist, header: cstring) -> ^curl_slist ---
-	curl_slist_free_all :: proc(list: ^curl_slist) ---
-	curl_easy_getinfo :: proc(curl: ^CURL, info: CURLINFO, #c_vararg data: ..any) -> CURLcode ---
+	curl_slist_append :: proc(list: ^Slist, header: cstring) -> ^Slist ---
+	curl_slist_free_all :: proc(list: ^Slist) ---
+	curl_easy_getinfo :: proc(curl: ^Session, info: Info, #c_vararg data: ..any) -> Code ---
 }
 

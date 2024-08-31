@@ -31,7 +31,7 @@ Client_Error :: union {
 Curl_Init_Error :: struct {}
 
 Curl_Error :: struct {
-	code: libcurl.CURLcode,
+	code: libcurl.Code,
 }
 
 Response_Error :: struct {
@@ -40,8 +40,8 @@ Response_Error :: struct {
 }
 
 init :: proc() -> (client: Client, err: Client_Error) {
-	code := libcurl.curl_global_init(libcurl.CURL_GLOBAL_ALL)
-	if code != libcurl.CURLcode.CURLE_OK {
+	code := libcurl.curl_global_init(.GLOBAL_ALL)
+	if code != .E_OK {
 		fmt.eprintf("curl_global_init() failed: %s\n", libcurl.curl_easy_strerror(code))
 		err = Curl_Error{code}
 	}
@@ -72,16 +72,12 @@ image_pull :: proc(
 	curl := libcurl.curl_easy_init()
 	defer libcurl.curl_easy_cleanup(curl)
 	if curl != nil {
-		code := libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
-			DOCKER_SOCKET,
-		)
-		hs: ^libcurl.curl_slist
+		code := libcurl.curl_easy_setopt(curl, .OPT_UNIX_SOCKET_PATH, DOCKER_SOCKET)
+		hs: ^libcurl.Slist
 		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
 		defer libcurl.curl_slist_free_all(hs)
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_HTTPHEADER, hs)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -95,19 +91,15 @@ image_pull :: proc(
 		strings.write_string(&url, API_PREFIX)
 		strings.write_string(&url, "/images/create?fromImage=")
 		strings.write_string(&url, name)
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_URL,
-			strings.to_cstring(&url),
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_URL, strings.to_cstring(&url))
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
 		}
 
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, EMPTY_BODY)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_POSTFIELDS, EMPTY_BODY)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -117,7 +109,7 @@ image_pull :: proc(
 		}
 
 		code = libcurl.curl_easy_perform(curl)
-		if code != libcurl.CURLcode.CURLE_OK {
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
@@ -130,7 +122,7 @@ image_pull :: proc(
 }
 
 Callback_Data :: struct {
-	session:  ^libcurl.CURL,
+	session:  ^libcurl.Session,
 	response: ^container.Create_Response,
 	error:    ^Client_Error,
 }
@@ -147,12 +139,8 @@ container_create_callback :: proc "c" (
 ) -> c.int {
 	context = runtime.default_context()
 	status: c.int
-	code := libcurl.curl_easy_getinfo(
-		data.session,
-		libcurl.CURLINFO.CURLINFO_RESPONSE_CODE,
-		&status,
-	)
-	if code != libcurl.CURLcode.CURLE_OK {
+	code := libcurl.curl_easy_getinfo(data.session, .INFO_RESPONSE_CODE, &status)
+	if code != .E_OK {
 		fmt.eprintf(
 			"curl_easy_getinfo(RESPONSE_CODE) failed: %s\n",
 			libcurl.curl_easy_strerror(code),
@@ -192,16 +180,12 @@ container_create :: proc(
 	curl := libcurl.curl_easy_init()
 	defer libcurl.curl_easy_cleanup(curl)
 	if curl != nil {
-		code := libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
-			DOCKER_SOCKET,
-		)
-		hs: ^libcurl.curl_slist
+		code := libcurl.curl_easy_setopt(curl, .OPT_UNIX_SOCKET_PATH, DOCKER_SOCKET)
+		hs: ^libcurl.Slist
 		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
 		defer libcurl.curl_slist_free_all(hs)
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_HTTPHEADER, hs)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -216,12 +200,8 @@ container_create :: proc(
 		strings.write_string(&url, "/containers/create?name=")
 		strings.write_string(&url, name)
 		fmt.printf("container create: url=%s\n", strings.to_string(url))
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_URL,
-			strings.to_cstring(&url),
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_URL, strings.to_cstring(&url))
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
@@ -231,12 +211,8 @@ container_create :: proc(
 		defer strings.builder_destroy(&fields)
 		json.marshal_to_builder(&fields, options, &json.Marshal_Options{}) or_return
 		fmt.printf("container create: fields=%s\n", strings.to_string(fields))
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_POSTFIELDS,
-			strings.to_cstring(&fields),
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_POSTFIELDS, strings.to_cstring(&fields))
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -247,8 +223,8 @@ container_create :: proc(
 
 		data := Callback_Data{curl, &resp, &err}
 
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_WRITEDATA, &data)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_WRITEDATA, &data)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(WRITEDATA) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -257,12 +233,8 @@ container_create :: proc(
 			return
 		}
 
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_WRITEFUNCTION,
-			container_create_callback,
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_WRITEFUNCTION, container_create_callback)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(WRITEFUNCTION) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -272,7 +244,7 @@ container_create :: proc(
 		}
 
 		code = libcurl.curl_easy_perform(curl)
-		if code != libcurl.CURLcode.CURLE_OK {
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
@@ -288,16 +260,12 @@ container_start :: proc(id: string, options: container.Start_Options) -> (err: C
 	curl := libcurl.curl_easy_init()
 	defer libcurl.curl_easy_cleanup(curl)
 	if curl != nil {
-		code := libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
-			DOCKER_SOCKET,
-		)
-		hs: ^libcurl.curl_slist
+		code := libcurl.curl_easy_setopt(curl, .OPT_UNIX_SOCKET_PATH, DOCKER_SOCKET)
+		hs: ^libcurl.Slist
 		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
 		defer libcurl.curl_slist_free_all(hs)
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_HTTPHEADER, hs)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -312,19 +280,15 @@ container_start :: proc(id: string, options: container.Start_Options) -> (err: C
 		strings.write_string(&url, "/containers/")
 		strings.write_string(&url, id)
 		strings.write_string(&url, "/start")
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_URL,
-			strings.to_cstring(&url),
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_URL, strings.to_cstring(&url))
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
 		}
 
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, EMPTY_BODY)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_POSTFIELDS, EMPTY_BODY)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -334,7 +298,7 @@ container_start :: proc(id: string, options: container.Start_Options) -> (err: C
 		}
 
 		code = libcurl.curl_easy_perform(curl)
-		if code != libcurl.CURLcode.CURLE_OK {
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
@@ -367,16 +331,12 @@ container_stop :: proc(id: string, options: container.Stop_Options) -> (err: Cli
 	curl := libcurl.curl_easy_init()
 	defer libcurl.curl_easy_cleanup(curl)
 	if curl != nil {
-		code := libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
-			DOCKER_SOCKET,
-		)
-		hs: ^libcurl.curl_slist
+		code := libcurl.curl_easy_setopt(curl, .OPT_UNIX_SOCKET_PATH, DOCKER_SOCKET)
+		hs: ^libcurl.Slist
 		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
 		defer libcurl.curl_slist_free_all(hs)
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_HTTPHEADER, hs)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -391,19 +351,15 @@ container_stop :: proc(id: string, options: container.Stop_Options) -> (err: Cli
 		strings.write_string(&url, "/containers/")
 		strings.write_string(&url, id)
 		strings.write_string(&url, "/stop")
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_URL,
-			strings.to_cstring(&url),
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_URL, strings.to_cstring(&url))
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
 		}
 
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_POSTFIELDS, EMPTY_BODY)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_POSTFIELDS, EMPTY_BODY)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(POSTFIELDS) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -413,7 +369,7 @@ container_stop :: proc(id: string, options: container.Stop_Options) -> (err: Cli
 		}
 
 		code = libcurl.curl_easy_perform(curl)
-		if code != libcurl.CURLcode.CURLE_OK {
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
@@ -430,16 +386,12 @@ container_remove :: proc(id: string, options: container.Remove_Options) -> (err:
 	curl := libcurl.curl_easy_init()
 	defer libcurl.curl_easy_cleanup(curl)
 	if curl != nil {
-		code := libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_UNIX_SOCKET_PATH,
-			DOCKER_SOCKET,
-		)
-		hs: ^libcurl.curl_slist
+		code := libcurl.curl_easy_setopt(curl, .OPT_UNIX_SOCKET_PATH, DOCKER_SOCKET)
+		hs: ^libcurl.Slist
 		hs = libcurl.curl_slist_append(hs, JSON_HEADER)
 		defer libcurl.curl_slist_free_all(hs)
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_HTTPHEADER, hs)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_HTTPHEADER, hs)
+		if code != .E_OK {
 			fmt.eprintf(
 				"curl_easy_setopt(HTTPHEADER) failed: %s\n",
 				libcurl.curl_easy_strerror(code),
@@ -453,26 +405,22 @@ container_remove :: proc(id: string, options: container.Remove_Options) -> (err:
 		strings.write_string(&url, API_PREFIX)
 		strings.write_string(&url, "/containers/")
 		strings.write_string(&url, id)
-		code = libcurl.curl_easy_setopt(
-			curl,
-			libcurl.CURLoption.CURLOPT_URL,
-			strings.to_cstring(&url),
-		)
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_URL, strings.to_cstring(&url))
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
 		}
 
-		code = libcurl.curl_easy_setopt(curl, libcurl.CURLoption.CURLOPT_CUSTOMREQUEST, "DELETE")
-		if code != libcurl.CURLcode.CURLE_OK {
+		code = libcurl.curl_easy_setopt(curl, .OPT_CUSTOMREQUEST, "DELETE")
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_setopt(DELETE) failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
 		}
 
 		code = libcurl.curl_easy_perform(curl)
-		if code != libcurl.CURLcode.CURLE_OK {
+		if code != .E_OK {
 			fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
 			err = Curl_Error{code}
 			return
