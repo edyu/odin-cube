@@ -12,6 +12,7 @@ import "core:strings"
 import "core:time"
 import "docker/client"
 import "http"
+import "http/router"
 import "manager"
 import "node"
 import "task"
@@ -28,6 +29,19 @@ User_Formatter :: proc(fi: ^fmt.Info, arg: any, verb: rune) -> bool {
 		return false
 	}
 	return true
+}
+
+PAGE: string : "<html><head><title>blahblahblah</title></head><body>blah blah blah</body></html>"
+
+handle :: proc(w: ^http.Response_Writer, r: ^http.Request) {
+	fmt.println("in HANDLE")
+	fmt.println("REQUEST: ", r)
+	if r.method != "GET" {
+		return
+	}
+
+	http.set_response_status(w, .HTTP_OK)
+	http.write_response_string(w, PAGE)
 }
 
 main :: proc() {
@@ -62,7 +76,7 @@ main :: proc() {
 	assert(err == .None)
 
 	fmt.println("starting server on port 8080")
-	server, serr := http.start_server(8080)
+	server, serr := http.start_server(8080, handle)
 	if serr != nil {
 		fmt.eprintf("can't start http daemon\n")
 		os.exit(1)

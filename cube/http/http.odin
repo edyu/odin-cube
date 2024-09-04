@@ -24,21 +24,7 @@ Header :: map[string]string
 Response_Writer :: struct {
 	header:      Header,
 	status_code: Status_Code,
-	connection:  ^libmhd.Connection,
-	response:    ^libmhd.Response,
-	buffer:      [dynamic]byte,
-}
-
-make_response_writer :: proc() -> (response: Response_Writer) {
-	response.header = make(map[string]string)
-	response.buffer = make([dynamic]byte)
-
-	return response
-}
-
-destroy_response_writer :: proc(response: ^Response_Writer) {
-	delete(response.header)
-	delete(response.buffer)
+	buffer:      [dynamic]byte `fmt:"s"`,
 }
 
 Request :: struct {
@@ -49,6 +35,8 @@ Request :: struct {
 	body:       string,
 	connection: ^libmhd.Connection,
 }
+
+Handler :: proc(w: ^Response_Writer, r: ^Request)
 
 Status_Code :: enum uint {
 	/* 100 "Continue".            RFC9110, Section 15.2.1. */
@@ -199,6 +187,40 @@ Status_Code :: enum uint {
 	HTTP_BANDWIDTH_LIMIT_EXCEEDED             = 509,
 }
 
+Method :: enum uint {
+	/* Main HTTP methods. */
+	/* Safe.     Idempotent.     RFC9110, Section 9.3.1. */
+	GET = 1,
+	/* Safe.     Idempotent.     RFC9110, Section 9.3.2. */
+	HEAD,
+	/* Not safe. Not idempotent. RFC9110, Section 9.3.3. */
+	POST,
+	/* Not safe. Idempotent.     RFC9110, Section 9.3.4. */
+	PUT,
+	/* Not safe. Idempotent.     RFC9110, Section 9.3.5. */
+	DELETE,
+	/* Not safe. Not idempotent. RFC9110, Section 9.3.6. */
+	CONNECT,
+	/* Safe.     Idempotent.     RFC9110, Section 9.3.7. */
+	OPTIONS,
+	/* Safe.     Idempotent.     RFC9110, Section 9.3.8. */
+	TRACE,
+	/* Not safe. Not idempotent. RFC5789, Section 2. */
+	PATCH,
+}
+
+make_response_writer :: proc() -> (response: Response_Writer) {
+	response.header = make(map[string]string)
+	response.buffer = make([dynamic]byte)
+
+	return response
+}
+
+destroy_response_writer :: proc(response: ^Response_Writer) {
+	delete(response.header)
+	delete(response.buffer)
+}
+
 set_response_status :: proc(w: ^Response_Writer, code: Status_Code) {
 	w.status_code = code
 }
@@ -219,10 +241,7 @@ write_response_string :: proc(
 	written: int,
 	error: Http_Error,
 ) {
-	// val := append(&w.buffer, ..(transmute([]u8)msg)[:])
-	fmt.println("WRITING: ", msg)
 	val := append(&w.buffer, msg[:])
-	fmt.println("WROTE: ", w.buffer)
 	return val, nil
 }
 
@@ -250,14 +269,13 @@ answer_to_connection :: proc "c" (
 ) -> libmhd.Result {
 	context = runtime.default_context()
 	@(static) dummy: int
-	// page := cstring(cls)
+	handler := Handler(cls)
 	request: Request
 	request.url = string(url)
 	request.method = string(method)
 	request.version = string(version)
 	request.header = make(Header)
 	request.connection = connection
-	fmt.println("calling header iterator")
 	num_headers := libmhd.MHD_get_connection_values(
 		connection,
 		.MHD_HEADER_KIND,
@@ -276,7 +294,7 @@ answer_to_connection :: proc "c" (
 	ptr^ = nil
 
 	fmt.println("routing request...")
-	ok := route(&request)
+	ok := route(&request, handler)
 
 	if ok {
 		return .YES
@@ -285,67 +303,42 @@ answer_to_connection :: proc "c" (
 	}
 }
 
-PAGE: string : "<html><head><title>blahblahblah</title></head><body>blah blah blah</body></html>"
-
-handle :: proc(r: ^Request) -> (writer: Response_Writer, error: Http_Error) {
-	fmt.println("in HANDLE")
-	fmt.println("REQUEST: ", r)
-	writer = make_response_writer()
-	writer.connection = r.connection
-	set_response_status(&writer, .HTTP_OK)
-	write_response_string(&writer, PAGE)
-	writer.response = libmhd.MHD_create_response_from_buffer(
-		len(writer.buffer),
-		// transmute([^]u8)(strings.clone_to_cstring(string(writer.buffer[:]))),
-		raw_data(writer.buffer),
+route :: proc(r: ^Request, handler: Handler) -> (ok: bool) {
+	w := make_response_writer()
+	defer destroy_response_writer(&w)
+	handler(&w, r)
+	response := libmhd.MHD_create_response_from_buffer(
+		len(w.buffer),
+		raw_data(w.buffer),
 		// .RESPMEM_PERSISTENT,
 		.RESPMEM_MUST_COPY,
 	)
-	fmt.println("RESPONSE:", writer)
+	fmt.println("RESPONSE:", w)
 
-	if writer.response == nil {
+	if response == nil {
 		fmt.eprintln("Error: cannot create response")
-		return writer, Response_Create_Error{}
-	}
-
-	return writer, nil
-}
-
-route :: proc(r: ^Request) -> (ok: bool) {
-	if r.method != "GET" {
 		return false
 	}
 
-	writer, err := handle(r)
-	if err != nil {
-		fmt.eprintf("%v\n", err)
-		return false
-	}
-	defer destroy_response_writer(&writer)
-
-	for h, v in writer.header {
+	for h, v in w.header {
 		hs := strings.clone_to_cstring(h, context.temp_allocator)
 		vs := strings.clone_to_cstring(v, context.temp_allocator)
-		ret := libmhd.MHD_add_response_header(writer.response, hs, vs)
+		ret := libmhd.MHD_add_response_header(response, hs, vs)
 	}
-	ret := libmhd.MHD_queue_response(
-		r.connection,
-		libmhd.Status_Code(writer.status_code),
-		writer.response,
-	)
-	libmhd.MHD_destroy_response(writer.response)
+	ret := libmhd.MHD_queue_response(r.connection, libmhd.Status_Code(w.status_code), response)
+	libmhd.MHD_destroy_response(response)
 
 	return ret == .YES
 }
 
-start_server :: proc(port: u16) -> (server: Server, error: Http_Error) {
+start_server :: proc(port: u16, handler: Handler) -> (server: Server, error: Http_Error) {
 	server.daemon = libmhd.MHD_start_daemon(
 		.USE_THREAD_PER_CONNECTION,
 		port,
 		nil,
 		nil,
 		answer_to_connection,
-		nil,
+		rawptr(handler),
 		.OPTION_END,
 	)
 

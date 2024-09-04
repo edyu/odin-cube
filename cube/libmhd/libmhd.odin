@@ -1001,12 +1001,25 @@ Value_Kind :: enum c.uint {
 	MHD_FOOTER_KIND       = 16,
 }
 
-Key_Value_Iterator :: proc "c" (
-	cls: rawptr,
-	kind: Value_Kind,
-	key: cstring,
-	value: cstring,
-) -> Result
+/* Main HTTP methods. */
+/* Safe.     Idempotent.     RFC9110, Section 9.3.1. */
+MHD_HTTP_METHOD_GET: cstring : "GET"
+/* Safe.     Idempotent.     RFC9110, Section 9.3.2. */
+MHD_HTTP_METHOD_HEAD: cstring : "HEAD"
+/* Not safe. Not idempotent. RFC9110, Section 9.3.3. */
+MHD_HTTP_METHOD_POST: cstring : "POST"
+/* Not safe. Idempotent.     RFC9110, Section 9.3.4. */
+MHD_HTTP_METHOD_PUT: cstring : "PUT"
+/* Not safe. Idempotent.     RFC9110, Section 9.3.5. */
+MHD_HTTP_METHOD_DELETE: cstring : "DELETE"
+/* Not safe. Not idempotent. RFC9110, Section 9.3.6. */
+MHD_HTTP_METHOD_CONNECT: cstring : "CONNECT"
+/* Safe.     Idempotent.     RFC9110, Section 9.3.7. */
+MHD_HTTP_METHOD_OPTIONS: cstring : "OPTIONS"
+/* Safe.     Idempotent.     RFC9110, Section 9.3.8. */
+MHD_HTTP_METHOD_TRACE: cstring : "TRACE"
+/* Not safe. Not idempotent. RFC5789, Section 2. */
+MHD_HTTP_METHOD_PATCH: cstring : "PATCH"
 
 Connection :: struct {}
 
@@ -1029,6 +1042,13 @@ Access_Handler_Callback :: proc "c" (
 	upload_data: cstring,
 	upload_data_size: ^c.size_t,
 	req_cls: ^rawptr,
+) -> Result
+
+Key_Value_Iterator :: proc "c" (
+	cls: rawptr,
+	kind: Value_Kind,
+	key: cstring,
+	value: cstring,
 ) -> Result
 
 foreign libmhd {
