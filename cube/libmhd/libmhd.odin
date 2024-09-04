@@ -968,6 +968,46 @@ Status_Code :: enum c.uint {
 	HTTP_BANDWIDTH_LIMIT_EXCEEDED             = 509,
 }
 
+Value_Kind :: enum c.uint {
+	/**
+   * HTTP header (request/response).
+   */
+	MHD_HEADER_KIND       = 1,
+
+	/**
+   * Cookies.  Note that the original HTTP header containing
+   * the cookie(s) will still be available and intact.
+   */
+	MHD_COOKIE_KIND       = 2,
+
+	/**
+   * POST data.  This is available only if a content encoding
+   * supported by MHD is used (currently only URL encoding),
+   * and only if the posted content fits within the available
+   * memory pool.  Note that in that case, the upload data
+   * given to the #MHD_AccessHandlerCallback will be
+   * empty (since it has already been processed).
+   */
+	MHD_POSTDATA_KIND     = 4,
+
+	/**
+   * GET (URI) arguments.
+   */
+	MHD_GET_ARGUMENT_KIND = 8,
+
+	/**
+   * HTTP footer (only for HTTP 1.1 chunked encodings).
+   */
+	MHD_FOOTER_KIND       = 16,
+}
+
+Key_Value_Iterator :: proc "c" (
+	cls: rawptr,
+	kind: Value_Kind,
+	key: cstring,
+	value: cstring,
+) -> Result
+
 Connection :: struct {}
 
 Daemon :: struct {}
@@ -997,5 +1037,7 @@ foreign libmhd {
 	MHD_create_response_from_buffer :: proc(size: c.size_t, buffer: rawptr, mode: Response_Memory_Mode) -> ^Response ---
 	MHD_queue_response :: proc(connection: ^Connection, status_code: Status_Code, response: ^Response) -> Result ---
 	MHD_destroy_response :: proc(response: ^Response) ---
+	MHD_add_response_header :: proc(response: ^Response, header: cstring, value: cstring) -> Result ---
+	MHD_get_connection_values :: proc(connection: ^Connection, kind: Value_Kind, iterator: Key_Value_Iterator, cls: rawptr) -> c.int ---
 }
 
