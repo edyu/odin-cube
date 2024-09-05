@@ -294,7 +294,7 @@ answer_to_connection :: proc "c" (
 	ptr^ = nil
 
 	fmt.println("routing request...")
-	ok := route(&request, handler)
+	ok := handle_request(&request, handler)
 
 	if ok {
 		return .YES
@@ -303,7 +303,7 @@ answer_to_connection :: proc "c" (
 	}
 }
 
-route :: proc(r: ^Request, handler: Handler) -> (ok: bool) {
+handle_request :: proc(r: ^Request, handler: Handler) -> (ok: bool) {
 	w := make_response_writer()
 	defer destroy_response_writer(&w)
 	handler(&w, r)

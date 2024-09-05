@@ -33,15 +33,15 @@ User_Formatter :: proc(fi: ^fmt.Info, arg: any, verb: rune) -> bool {
 
 PAGE: string : "<html><head><title>blahblahblah</title></head><body>blah blah blah</body></html>"
 
-handle :: proc(w: ^http.Response_Writer, r: ^http.Request) {
-	fmt.println("in HANDLE")
-	fmt.println("REQUEST: ", r)
-	if r.method != "GET" {
-		return
-	}
-
+serve_static :: proc(w: ^http.Response_Writer, r: ^http.Request) {
+	fmt.println("IN STATIC")
 	http.set_response_status(w, .HTTP_OK)
 	http.write_response_string(w, PAGE)
+}
+
+setup_routes :: proc(mux: ^router.Router) {
+	fmt.println("SETUP ROUTES called")
+	router.get(mux, "/", serve_static)
 }
 
 main :: proc() {
@@ -76,12 +76,11 @@ main :: proc() {
 	assert(err == .None)
 
 	fmt.println("starting server on port 8080")
-	server, serr := http.start_server(8080, handle)
+	server, serr := router.start_server(8080, setup_routes)
 	if serr != nil {
-		fmt.eprintf("can't start http daemon\n")
-		os.exit(1)
+		panic("error starting http daemon")
 	}
-	defer http.stop_server(server)
+	defer router.stop_server(server)
 
 	w := worker.init("worker-1")
 	defer worker.deinit(&w)
