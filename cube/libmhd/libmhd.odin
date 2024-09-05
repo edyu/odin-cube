@@ -26,7 +26,7 @@ Flag :: enum c.uint {
 	/**
    * Print errors messages to custom error logger or to `stderr` if
    * custom error logger is not set.
-   * @sa ::OPTION_EXTERNAL_LOGGER
+   * @sa ::EXTERNAL_LOGGER
    */
 	USE_ERROR_LOG                   = 1,
 
@@ -76,9 +76,9 @@ Flag :: enum c.uint {
 	/**
    * Be pedantic about the protocol (as opposed to as tolerant as
    * possible).
-   * This flag is equivalent to setting 1 as #OPTION_CLIENT_DISCIPLINE_LVL
+   * This flag is equivalent to setting 1 as #CLIENT_DISCIPLINE_LVL
    * value.
-   * @sa #OPTION_CLIENT_DISCIPLINE_LVL
+   * @sa #CLIENT_DISCIPLINE_LVL
    */
 	USE_PEDANTIC_CHECKS             = 32,
 
@@ -111,7 +111,7 @@ Flag :: enum c.uint {
    * Run without a listen socket.  This option only makes sense if
    * #add_connection is to be used exclusively to connect HTTP
    * clients to the HTTP server.  This option is incompatible with
-   * using a thread pool; if it is used, #OPTION_THREAD_POOL_SIZE
+   * using a thread pool; if it is used, #THREAD_POOL_SIZE
    * is ignored.
    */
 	USE_NO_LISTEN_SOCKET            = 256,
@@ -234,6 +234,60 @@ Flag :: enum c.uint {
 	USE_NO_THREAD_SAFETY            = 1 << 19,
 }
 
+/**
+ * The `enum MHD_RequestTerminationCode` specifies reasons
+ * why a request has been terminated (or completed).
+ * @ingroup request
+ */
+Request_Termination_Code :: enum c.uint {
+	/**
+   * We finished sending the response.
+   * @ingroup request
+   */
+	COMPLETED_OK    = 0,
+
+	/**
+   * Error handling the connection (resources
+   * exhausted, application error accepting request,
+   * decrypt error (for HTTPS), connection died when
+   * sending the response etc.)
+   * @ingroup request
+   */
+	WITH_ERROR      = 1,
+
+	/**
+   * No activity on the connection for the number
+   * of seconds specified using
+   * #CONNECTION_TIMEOUT.
+   * @ingroup request
+   */
+	TIMEOUT_REACHED = 2,
+
+	/**
+   * We had to close the session since MHD was being
+   * shut down.
+   * @ingroup request
+   */
+	DAEMON_SHUTDOWN = 3,
+
+	/**
+   * We tried to read additional data, but the connection became broken or
+   * the other side hard closed the connection.
+   * This error is similar to #MHD_REQUEST_TERMINATED_WITH_ERROR, but
+   * specific to the case where the connection died before request completely
+   * received.
+   * @ingroup request
+   */
+	READ_ERROR      = 4,
+
+	/**
+   * The client terminated the connection by closing the socket
+   * for writing (TCP half-closed) while still sending request.
+   * @ingroup request
+   */
+	CLIENT_ABORT    = 5,
+}
+
 Response_Memory_Mode :: enum c.uint {
 	/**
    * Buffer is a persistent (static/global) buffer that won't change
@@ -241,7 +295,7 @@ Response_Memory_Mode :: enum c.uint {
    * it, not free it, not copy it, just keep an alias to it.
    * @ingroup response
    */
-	RESPMEM_PERSISTENT,
+	PERSISTENT,
 
 	/**
    * Buffer is heap-allocated with `malloc()` (or equivalent) and
@@ -255,7 +309,7 @@ Response_Memory_Mode :: enum c.uint {
    *          important for W32).
    * @ingroup response
    */
-	RESPMEM_MUST_FREE,
+	MUST_FREE,
 
 	/**
    * Buffer is in transient memory, but not on the heap (for example,
@@ -264,7 +318,7 @@ Response_Memory_Mode :: enum c.uint {
    * own private copy of the data for processing.
    * @ingroup response
    */
-	RESPMEM_MUST_COPY,
+	MUST_COPY,
 }
 
 /**
@@ -277,7 +331,7 @@ Option :: enum c.uint {
    * No more options / last option.  This is used
    * to terminate the VARARGs list.
    */
-	OPTION_END                               = 0,
+	END                               = 0,
 
 	/**
    * Maximum memory size per connection (followed by a `size_t`).
@@ -288,13 +342,13 @@ Option :: enum c.uint {
    * Values below 64 bytes are completely unusable.
    * Since #VERSION 0x00097710 silently ignored if followed by zero value.
    */
-	OPTION_CONNECTION_MEMORY_LIMIT           = 1,
+	CONNECTION_MEMORY_LIMIT           = 1,
 
 	/**
    * Maximum number of concurrent connections to
    * accept (followed by an `unsigned int`).
    */
-	OPTION_CONNECTION_LIMIT                  = 2,
+	CONNECTION_LIMIT                  = 2,
 
 	/**
    * After how many seconds of inactivity should a
@@ -303,7 +357,7 @@ Option :: enum c.uint {
    * Values larger than (UINT64_MAX / 2000 - 1) will
    * be clipped to this number.
    */
-	OPTION_CONNECTION_TIMEOUT                = 3,
+	CONNECTION_TIMEOUT                = 3,
 
 	/**
    * Register a function that should be called whenever a request has
@@ -317,7 +371,7 @@ Option :: enum c.uint {
    * pointer to a closure to pass to the request completed callback.
    * The second pointer may be NULL.
    */
-	OPTION_NOTIFY_COMPLETED                  = 4,
+	NOTIFY_COMPLETED                  = 4,
 
 	/**
    * Limit on the number of (concurrent) connections made to the
@@ -329,7 +383,7 @@ Option :: enum c.uint {
    * zero, which means no limit on the number of connections
    * from the same IP address.
    */
-	OPTION_PER_IP_CONNECTION_LIMIT           = 5,
+	PER_IP_CONNECTION_LIMIT           = 5,
 
 	/**
    * Bind daemon to the supplied `struct sockaddr`. This option should
@@ -337,9 +391,9 @@ Option :: enum c.uint {
    * specified, the `struct sockaddr*` should point to a `struct
    * sockaddr_in6`, otherwise to a `struct sockaddr_in`.
    * Silently ignored if followed by NULL pointer.
-   * @deprecated Use #OPTION_SOCK_ADDR_LEN
+   * @deprecated Use #SOCK_ADDR_LEN
    */
-	OPTION_SOCK_ADDR                         = 6,
+	SOCK_ADDR                         = 6,
 
 	/**
    * Specify a function that should be called before parsing the URI from
@@ -359,7 +413,7 @@ Option :: enum c.uint {
    * rely on the first call to the access handler having
    * `NULL == *req_cls` on entry;)
    * "cls" will be set to the second argument following
-   * #OPTION_URI_LOG_CALLBACK.  Finally, uri will
+   * #URI_LOG_CALLBACK.  Finally, uri will
    * be the 0-terminated URI of the request.
    *
    * Note that during the time of this call, most of the connection's
@@ -369,32 +423,32 @@ Option :: enum c.uint {
    *
    * The specified function is called only once per request, therefore some
    * programmers may use it to instantiate their own request objects, freeing
-   * them in the notifier #OPTION_NOTIFY_COMPLETED.
+   * them in the notifier #NOTIFY_COMPLETED.
    */
-	OPTION_URI_LOG_CALLBACK                  = 7,
+	URI_LOG_CALLBACK                  = 7,
 
 	/**
    * Memory pointer for the private key (key.pem) to be used by the
    * HTTPS daemon.  This option should be followed by a
    * `const char *` argument.
-   * This should be used in conjunction with #OPTION_HTTPS_MEM_CERT.
+   * This should be used in conjunction with #HTTPS_MEM_CERT.
    */
-	OPTION_HTTPS_MEM_KEY                     = 8,
+	HTTPS_MEM_KEY                     = 8,
 
 	/**
    * Memory pointer for the certificate (cert.pem) to be used by the
    * HTTPS daemon.  This option should be followed by a
    * `const char *` argument.
-   * This should be used in conjunction with #OPTION_HTTPS_MEM_KEY.
+   * This should be used in conjunction with #HTTPS_MEM_KEY.
    */
-	OPTION_HTTPS_MEM_CERT                    = 9,
+	HTTPS_MEM_CERT                    = 9,
 
 	/**
    * Daemon credentials type.
    * Followed by an argument of type
    * `gnutls_credentials_type_t`.
    */
-	OPTION_HTTPS_CRED_TYPE                   = 10,
+	HTTPS_CRED_TYPE                   = 10,
 
 	/**
    * Memory pointer to a `const char *` specifying the GnuTLS priorities string.
@@ -407,7 +461,7 @@ Option :: enum c.uint {
    * For more details see GnuTLS documentation for "Application-specific
    * priority strings".
    */
-	OPTION_HTTPS_PRIORITIES                  = 11,
+	HTTPS_PRIORITIES                  = 11,
 
 	/**
    * Pass a listen socket for MHD to use (systemd-style).  If this
@@ -417,7 +471,7 @@ Option :: enum c.uint {
    * If followed by INVALID_SOCKET value, MHD ignores this option
    * and creates socket by itself.
    */
-	OPTION_LISTEN_SOCKET                     = 12,
+	LISTEN_SOCKET                     = 12,
 
 	/**
    * Use the given function for logging error messages.  This option
@@ -432,7 +486,7 @@ Option :: enum c.uint {
    * if it was compiled without the "--enable-messages"
    * flag being set.
    */
-	OPTION_EXTERNAL_LOGGER                   = 13,
+	EXTERNAL_LOGGER                   = 13,
 
 	/**
    * Number (`unsigned int`) of threads in thread pool. Enable
@@ -441,28 +495,28 @@ Option :: enum c.uint {
    * Can be used only for daemons started with #USE_INTERNAL_POLLING_THREAD.
    * Ignored if followed by zero value.
    */
-	OPTION_THREAD_POOL_SIZE                  = 14,
+	THREAD_POOL_SIZE                  = 14,
 
 	/**
    * Additional options given in an array of `struct OptionItem`.
-   * The array must be terminated with an entry `{OPTION_END, 0, NULL}`.
-   * An example for code using #OPTION_ARRAY is:
+   * The array must be terminated with an entry `{END, 0, NULL}`.
+   * An example for code using #ARRAY is:
    *
    *     struct OptionItem ops[] = {
-   *       { OPTION_CONNECTION_LIMIT, 100, NULL },
-   *       { OPTION_CONNECTION_TIMEOUT, 10, NULL },
-   *       { OPTION_END, 0, NULL }
+   *       { CONNECTION_LIMIT, 100, NULL },
+   *       { CONNECTION_TIMEOUT, 10, NULL },
+   *       { END, 0, NULL }
    *     };
    *     d = start_daemon (0, 8080, NULL, NULL, dh, NULL,
-   *                           OPTION_ARRAY, ops,
-   *                           OPTION_END);
+   *                           ARRAY, ops,
+   *                           END);
    *
    * For options that expect a single pointer argument, the
    * 'value' member of the `struct OptionItem` is ignored.
    * For options that expect two pointer arguments, the first
    * argument must be cast to `intptr_t`.
    */
-	OPTION_ARRAY                             = 15,
+	ARRAY                             = 15,
 
 	/**
    * Specify a function that should be called for unescaping escape
@@ -482,9 +536,9 @@ Option :: enum c.uint {
    * be shorter than the input and must still be 0-terminated).
    * However, it may also include binary zeros before the
    * 0-termination.  "cls" will be set to the second argument
-   * following #OPTION_UNESCAPE_CALLBACK.
+   * following #UNESCAPE_CALLBACK.
    */
-	OPTION_UNESCAPE_CALLBACK                 = 16,
+	UNESCAPE_CALLBACK                 = 16,
 
 	/**
    * Memory pointer for the random values to be used by the Digest
@@ -497,9 +551,9 @@ Option :: enum c.uint {
    * Note that the application must ensure that the buffer of the
    * second argument remains allocated and unmodified while the
    * daemon is running.
-   * @sa #OPTION_DIGEST_AUTH_RANDOM_COPY
+   * @sa #DIGEST_AUTH_RANDOM_COPY
    */
-	OPTION_DIGEST_AUTH_RANDOM                = 17,
+	DIGEST_AUTH_RANDOM                = 17,
 
 	/**
    * Size of the internal array holding the map of the nonce and
@@ -511,36 +565,36 @@ Option :: enum c.uint {
    * If Digest Auth is not used, this option can be set to zero to minimise
    * memory allocation.
    */
-	OPTION_NONCE_NC_SIZE                     = 18,
+	NONCE_NC_SIZE                     = 18,
 
 	/**
    * Desired size of the stack for threads created by MHD. Followed
    * by an argument of type `size_t`.  Use 0 for system default.
    */
-	OPTION_THREAD_STACK_SIZE                 = 19,
+	THREAD_STACK_SIZE                 = 19,
 
 	/**
    * Memory pointer for the certificate (ca.pem) to be used by the
    * HTTPS daemon for client authentication.
    * This option should be followed by a `const char *` argument.
    */
-	OPTION_HTTPS_MEM_TRUST                   = 20,
+	HTTPS_MEM_TRUST                   = 20,
 
 	/**
    * Increment to use for growing the read buffer (followed by a
    * `size_t`).
-   * Must not be higher than 1/4 of #OPTION_CONNECTION_MEMORY_LIMIT.
+   * Must not be higher than 1/4 of #CONNECTION_MEMORY_LIMIT.
    * Since #VERSION 0x00097710 silently ignored if followed by zero value.
    */
-	OPTION_CONNECTION_MEMORY_INCREMENT       = 21,
+	CONNECTION_MEMORY_INCREMENT       = 21,
 
 	/**
    * Use a callback to determine which X.509 certificate should be
    * used for a given HTTPS connection.  This option should be
    * followed by a argument of type `gnutls_certificate_retrieve_function2 *`.
    * This option provides an
-   * alternative to #OPTION_HTTPS_MEM_KEY,
-   * #OPTION_HTTPS_MEM_CERT.  You must use this version if
+   * alternative to #HTTPS_MEM_KEY,
+   * #HTTPS_MEM_CERT.  You must use this version if
    * multiple domains are to be hosted at the same IP address using
    * TLS's Server Name Indication (SNI) extension.  In this case,
    * the callback is expected to select the correct certificate
@@ -548,7 +602,7 @@ Option :: enum c.uint {
    * to access the SNI data using `gnutls_server_name_get()`.
    * Using this option requires GnuTLS 3.0 or higher.
    */
-	OPTION_HTTPS_CERT_CALLBACK               = 22,
+	HTTPS_CERT_CALLBACK               = 22,
 
 	/**
    * When using #USE_TCP_FASTOPEN, this option changes the default TCP
@@ -557,14 +611,14 @@ Option :: enum c.uint {
    * resources for the SYN packet along with its DATA.  This option should be
    * followed by an `unsigned int` argument.
    */
-	OPTION_TCP_FASTOPEN_QUEUE_SIZE           = 23,
+	TCP_FASTOPEN_QUEUE_SIZE           = 23,
 
 	/**
    * Memory pointer for the Diffie-Hellman parameters (dh.pem) to be used by the
    * HTTPS daemon for key exchange.
    * This option must be followed by a `const char *` argument.
    */
-	OPTION_HTTPS_MEM_DHPARAMS                = 24,
+	HTTPS_MEM_DHPARAMS                = 24,
 
 	/**
    * If present and set to true, allow reusing address:port socket
@@ -573,16 +627,16 @@ Option :: enum c.uint {
    * (does nothing on most platform, but uses SO_EXCLUSIVEADDRUSE on Windows).
    * This option must be followed by a `unsigned int` argument.
    */
-	OPTION_LISTENING_ADDRESS_REUSE           = 25,
+	LISTENING_ADDRESS_REUSE           = 25,
 
 	/**
    * Memory pointer for a password that decrypts the private key (key.pem)
    * to be used by the HTTPS daemon. This option should be followed by a
    * `const char *` argument.
-   * This should be used in conjunction with #OPTION_HTTPS_MEM_KEY.
+   * This should be used in conjunction with #HTTPS_MEM_KEY.
    * @sa ::FEATURE_HTTPS_KEY_PASSWORD
    */
-	OPTION_HTTPS_KEY_PASSWORD                = 26,
+	HTTPS_KEY_PASSWORD                = 26,
 
 	/**
    * Register a function that should be called whenever a connection is
@@ -593,7 +647,7 @@ Option :: enum c.uint {
    * pointer to a closure to pass to the request completed callback.
    * The second pointer may be NULL.
    */
-	OPTION_NOTIFY_CONNECTION                 = 27,
+	NOTIFY_CONNECTION                 = 27,
 
 	/**
    * Allow to change maximum length of the queue of pending connections on
@@ -601,26 +655,26 @@ Option :: enum c.uint {
    * value is used. This option should be followed by an `unsigned int`
    * argument.
    */
-	OPTION_LISTEN_BACKLOG_SIZE               = 28,
+	LISTEN_BACKLOG_SIZE               = 28,
 
 	/**
    * If set to 1 - be strict about the protocol.  Use -1 to be
    * as tolerant as possible.
    *
-   * The more flexible option #OPTION_CLIENT_DISCIPLINE_LVL is recommended
+   * The more flexible option #CLIENT_DISCIPLINE_LVL is recommended
    * instead of this option.
    *
    * The values mapping table:
-   * #OPTION_STRICT_FOR_CLIENT | #OPTION_CLIENT_DISCIPLINE_LVL
-   * -----------------------------:|:---------------------------------
-   * 1                             | 1
-   * 0                             | 0
-   * -1                            | -3
+   * #STRICT_FOR_CLIENT | #CLIENT_DISCIPLINE_LVL
+   * ------------------:|:----------------------
+   * 1                  | 1
+   * 0                  | 0
+   * -1                 | -3
    *
    * This option should be followed by an `int` argument.
-   * @sa #OPTION_CLIENT_DISCIPLINE_LVL
+   * @sa #CLIENT_DISCIPLINE_LVL
    */
-	OPTION_STRICT_FOR_CLIENT                 = 29,
+	STRICT_FOR_CLIENT                 = 29,
 
 	/**
    * This should be a pointer to callback of type
@@ -628,18 +682,18 @@ Option :: enum c.uint {
    * gnutls_psk_set_server_credentials_function. It is used to
    * retrieve the shared key for a given username.
    */
-	OPTION_GNUTLS_PSK_CRED_HANDLER           = 30,
+	GNUTLS_PSK_CRED_HANDLER           = 30,
 
 	/**
    * Use a callback to determine which X.509 certificate should be
    * used for a given HTTPS connection.  This option should be
    * followed by a argument of type `gnutls_certificate_retrieve_function3 *`.
    * This option provides an
-   * alternative/extension to #OPTION_HTTPS_CERT_CALLBACK.
+   * alternative/extension to #HTTPS_CERT_CALLBACK.
    * You must use this version if you want to use OCSP stapling.
    * Using this option requires GnuTLS 3.6.3 or higher.
    */
-	OPTION_HTTPS_CERT_CALLBACK2              = 31,
+	HTTPS_CERT_CALLBACK2              = 31,
 
 	/**
    * Allows the application to disable certain sanity precautions
@@ -650,7 +704,7 @@ Option :: enum c.uint {
    * This argument must be followed by an "unsigned int", corresponding
    * to an `enum DisableSanityCheck`.
    */
-	OPTION_SERVER_INSANITY                   = 32,
+	SERVER_INSANITY                   = 32,
 
 	/**
    * If followed by value '1' informs MHD that SIGPIPE is suppressed or
@@ -661,7 +715,7 @@ Option :: enum c.uint {
    * This option should be followed by an `int` argument.
    * @note Available since #VERSION 0x00097205
    */
-	OPTION_SIGPIPE_HANDLED_BY_APP            = 33,
+	SIGPIPE_HANDLED_BY_APP            = 33,
 
 	/**
    * If followed by 'int' with value '1' disables usage of ALPN for TLS
@@ -670,7 +724,7 @@ Option :: enum c.uint {
    * This option should be followed by an `int` argument.
    * @note Available since #VERSION 0x00097207
    */
-	OPTION_TLS_NO_ALPN                       = 34,
+	TLS_NO_ALPN                       = 34,
 
 	/**
    * Memory pointer for the random values to be used by the Digest
@@ -682,10 +736,10 @@ Option :: enum c.uint {
    * more than 16 - debatable) will not increase security.
    * An internal copy of the buffer will be made, the data do not
    * need to be static.
-   * @sa #OPTION_DIGEST_AUTH_RANDOM
+   * @sa #DIGEST_AUTH_RANDOM
    * @note Available since #VERSION 0x00097701
    */
-	OPTION_DIGEST_AUTH_RANDOM_COPY           = 35,
+	DIGEST_AUTH_RANDOM_COPY           = 35,
 
 	/**
    * Allow to controls the scope of validity of MHD-generated nonces.
@@ -696,7 +750,7 @@ Option :: enum c.uint {
    * When not specified, default value #DAUTH_BIND_NONCE_NONE is used.
    * @note Available since #VERSION 0x00097701
    */
-	OPTION_DIGEST_AUTH_NONCE_BIND_TYPE       = 36,
+	DIGEST_AUTH_NONCE_BIND_TYPE       = 36,
 
 	/**
    * Memory pointer to a `const char *` specifying the GnuTLS priorities to be
@@ -704,11 +758,11 @@ Option :: enum c.uint {
    * This allow some specific options to be enabled/disabled, while leaving
    * the rest of the settings to their defaults.
    * The string does not have to start with a colon ':' character.
-   * See #OPTION_HTTPS_PRIORITIES description for details of automatic
+   * See #HTTPS_PRIORITIES description for details of automatic
    * default priorities.
    * @note Available since #VERSION 0x00097701
    */
-	OPTION_HTTPS_PRIORITIES_APPEND           = 37,
+	HTTPS_PRIORITIES_APPEND           = 37,
 
 	/**
    * Sets specified client discipline level (i.e. HTTP protocol parsing
@@ -754,7 +808,7 @@ Option :: enum c.uint {
    * This option should be followed by an `int` argument.
    * @note Available since #VERSION 0x00097701
    */
-	OPTION_CLIENT_DISCIPLINE_LVL             = 38,
+	CLIENT_DISCIPLINE_LVL             = 38,
 
 	/**
    * Specifies value of FD_SETSIZE used by application.  Only For external
@@ -776,7 +830,7 @@ Option :: enum c.uint {
    * This option should be followed by a positive 'int' argument.
    * @note Available since #VERSION 0x00097705
    */
-	OPTION_APP_FD_SETSIZE                    = 39,
+	APP_FD_SETSIZE                    = 39,
 
 	/**
    * Bind daemon to the supplied 'struct sockaddr'.  This option should
@@ -792,7 +846,7 @@ Option :: enum c.uint {
    * Silently ignored if followed by zero size and NULL pointer.
    * @note Available since #VERSION 0x00097706
    */
-	OPTION_SOCK_ADDR_LEN                     = 40,
+	SOCK_ADDR_LEN                     = 40,
 	/**
    * Default nonce timeout value used for Digest Auth.
    * This option should be followed by an 'unsigned int' argument.
@@ -800,7 +854,7 @@ Option :: enum c.uint {
    * @see #digest_auth_check3(), digest_auth_check_digest3()
    * @note Available since #VERSION 0x00097709
    */
-	OPTION_DIGEST_AUTH_DEFAULT_NONCE_TIMEOUT = 41,
+	DIGEST_AUTH_DEFAULT_NONCE_TIMEOUT = 41,
 	/**
    * Default maximum nc (nonce count) value used for Digest Auth.
    * This option should be followed by an 'uint32_t' argument.
@@ -808,7 +862,7 @@ Option :: enum c.uint {
    * @see #digest_auth_check3(), digest_auth_check_digest3()
    * @note Available since #VERSION 0x00097709
    */
-	OPTION_DIGEST_AUTH_DEFAULT_MAX_NC        = 42,
+	DIGEST_AUTH_DEFAULT_MAX_NC        = 42,
 }
 
 /**
@@ -1003,29 +1057,51 @@ Value_Kind :: enum c.uint {
 
 /* Main HTTP methods. */
 /* Safe.     Idempotent.     RFC9110, Section 9.3.1. */
-MHD_HTTP_METHOD_GET: cstring : "GET"
+METHOD_GET: string : "GET"
 /* Safe.     Idempotent.     RFC9110, Section 9.3.2. */
-MHD_HTTP_METHOD_HEAD: cstring : "HEAD"
+METHOD_HEAD: string : "HEAD"
 /* Not safe. Not idempotent. RFC9110, Section 9.3.3. */
-MHD_HTTP_METHOD_POST: cstring : "POST"
+METHOD_POST: string : "POST"
 /* Not safe. Idempotent.     RFC9110, Section 9.3.4. */
-MHD_HTTP_METHOD_PUT: cstring : "PUT"
+METHOD_PUT: string : "PUT"
 /* Not safe. Idempotent.     RFC9110, Section 9.3.5. */
-MHD_HTTP_METHOD_DELETE: cstring : "DELETE"
+METHOD_DELETE: string : "DELETE"
 /* Not safe. Not idempotent. RFC9110, Section 9.3.6. */
-MHD_HTTP_METHOD_CONNECT: cstring : "CONNECT"
+METHOD_CONNECT: string : "CONNECT"
 /* Safe.     Idempotent.     RFC9110, Section 9.3.7. */
-MHD_HTTP_METHOD_OPTIONS: cstring : "OPTIONS"
+METHOD_OPTIONS: string : "OPTIONS"
 /* Safe.     Idempotent.     RFC9110, Section 9.3.8. */
-MHD_HTTP_METHOD_TRACE: cstring : "TRACE"
+METHOD_TRACE: string : "TRACE"
 /* Not safe. Not idempotent. RFC5789, Section 2. */
-MHD_HTTP_METHOD_PATCH: cstring : "PATCH"
+METHOD_PATCH: string : "PATCH"
 
-Connection :: struct {}
-
+/**
+ * @brief Handle for the daemon (listening on a socket for HTTP traffic).
+ * @ingroup event
+ */
 Daemon :: struct {}
 
+/**
+ * @brief Handle for a connection / HTTP request.
+ *
+ * With HTTP/1.1, multiple requests can be run over the same
+ * connection.  However, MHD will only show one request per TCP
+ * connection to the client at any given time.
+ * @ingroup request
+ */
+Connection :: struct {}
+
+/**
+ * @brief Handle for a response.
+ * @ingroup response
+ */
 Response :: struct {}
+
+/**
+ * @brief Handle for POST processing.
+ * @ingroup response
+ */
+Post_Processor :: struct {}
 
 Accept_Policy_Callback :: proc "c" (
 	cls: rawptr,
@@ -1039,7 +1115,7 @@ Access_Handler_Callback :: proc "c" (
 	url: cstring,
 	method: cstring,
 	version: cstring,
-	upload_data: cstring,
+	upload_data: [^]u8,
 	upload_data_size: ^c.size_t,
 	req_cls: ^rawptr,
 ) -> Result
@@ -1051,6 +1127,20 @@ Key_Value_Iterator :: proc "c" (
 	value: cstring,
 ) -> Result
 
+Post_Processor_Iterator :: proc "c" (
+	cls: rawptr,
+	kind: Value_Kind,
+	key: cstring,
+	filename: cstring,
+	content_type: cstring,
+	transfer_encoding: cstring,
+	data: [^]byte,
+	off: c.uint64_t,
+	size: c.size_t,
+) -> Result
+
+POST_BUFFER_SIZE :: 65536
+
 foreign libmhd {
 	MHD_start_daemon :: proc(flags: Flag, port: c.uint16_t, apc: Accept_Policy_Callback, apc_cls: rawptr, dh: Access_Handler_Callback, dh_cls: rawptr, #c_vararg data: ..Option) -> ^Daemon ---
 	MHD_stop_daemon :: proc(daemon: ^Daemon) ---
@@ -1059,5 +1149,8 @@ foreign libmhd {
 	MHD_destroy_response :: proc(response: ^Response) ---
 	MHD_add_response_header :: proc(response: ^Response, header: cstring, value: cstring) -> Result ---
 	MHD_get_connection_values :: proc(connection: ^Connection, kind: Value_Kind, iterator: Key_Value_Iterator, cls: rawptr) -> c.int ---
+	MHD_create_post_processor :: proc(connection: ^Connection, buffer_size: c.size_t, iter: Post_Processor_Iterator, iter_cls: rawptr) -> ^Post_Processor ---
+	MHD_destroy_post_processor :: proc(pp: ^Post_Processor) -> Result ---
+	MHD_post_process :: proc(pp: ^Post_Processor, post_data: [^]u8, post_data_len: c.size_t) -> Result ---
 }
 

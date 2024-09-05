@@ -35,6 +35,7 @@ PAGE: string : "<html><head><title>blahblahblah</title></head><body>blah blah bl
 
 serve_static :: proc(w: ^http.Response_Writer, r: ^http.Request) {
 	fmt.println("IN STATIC")
+	w.header["Content-Type"] = "text/html"
 	http.set_response_status(w, .HTTP_OK)
 	http.write_response_string(w, PAGE)
 }
