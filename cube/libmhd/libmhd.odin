@@ -1141,8 +1141,15 @@ Post_Processor_Iterator :: proc "c" (
 
 POST_BUFFER_SIZE :: 65536
 
+Completed_Callback :: proc "c" (
+	cls: rawptr,
+	connection: ^Connection,
+	con_cls: ^rawptr,
+	toe: Request_Termination_Code,
+)
+
 foreign libmhd {
-	MHD_start_daemon :: proc(flags: Flag, port: c.uint16_t, apc: Accept_Policy_Callback, apc_cls: rawptr, dh: Access_Handler_Callback, dh_cls: rawptr, #c_vararg data: ..Option) -> ^Daemon ---
+	MHD_start_daemon :: proc(flags: Flag, port: c.uint16_t, apc: Accept_Policy_Callback, apc_cls: rawptr, dh: Access_Handler_Callback, dh_cls: rawptr, #c_vararg data: ..any) -> ^Daemon ---
 	MHD_stop_daemon :: proc(daemon: ^Daemon) ---
 	MHD_create_response_from_buffer :: proc(size: c.size_t, buffer: rawptr, mode: Response_Memory_Mode) -> ^Response ---
 	MHD_queue_response :: proc(connection: ^Connection, status_code: Status_Code, response: ^Response) -> Result ---

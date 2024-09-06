@@ -79,18 +79,19 @@ delete :: proc(r: ^Router, pattern: string, handler: http.Handler) {
 	append(&r.tree, Node{.DELETE, pattern, handler})
 }
 
-serve :: proc(router: ^Router, w: ^http.Response_Writer, r: ^http.Request) -> bool {
-	fmt.println("IN SERVE")
-	m := router.method_map[string(r.method)]
+route_request :: proc(router: ^Router, w: ^http.Response_Writer, r: ^http.Request) -> bool {
+	fmt.println("IN ROUTE")
+	m := router.method_map[r.method]
 
+	fmt.println("ROUTE: BODY IS", string(r.body[:]))
 	for p, &s in router.sub {
 		if strings.starts_with(r.url, p) {
-			return serve(s, w, r)
+			return route_request(s, w, r)
 		}
 	}
 
 	for n in router.tree {
-		if n.pattern == r.url {
+		if n.method == m && n.pattern == r.url {
 			n.handler(w, r)
 			return true
 		}
@@ -98,7 +99,7 @@ serve :: proc(router: ^Router, w: ^http.Response_Writer, r: ^http.Request) -> bo
 
 	http.set_response_status(w, .HTTP_NOT_FOUND)
 
-	return false
+	return true
 }
 
 listen_and_serve :: proc "c" (
@@ -115,58 +116,74 @@ listen_and_serve :: proc "c" (
 
 	if con_cls^ == nil {
 		fmt.println("FIRST TIME LISTEN")
-		con_info := new(http.Connection_Info)
-		if con_info == nil {
-			return .NO
-		}
-		con_info.request = new(http.Request)
-		con_info.request.url = string(url)
-		con_info.request.method = string(method)
-		con_info.request.version = string(version)
-		con_info.request.header = make(http.Header)
-		con_info.request.body = make([dynamic]byte)
-		con_info.request.connection = connection
+		// con_info := new(http.Connection_Info)
+		// if con_info == nil {
+		// 	return .NO
+		// }
+		request := new(http.Request)
+		request.url = string(url)
+		request.method = string(method)
+		request.version = string(version)
+		request.header = make(http.Header)
+		request.body = make([dynamic]byte)
+		request.connection = connection
 		num_headers := libmhd.MHD_get_connection_values(
 			connection,
 			.MHD_HEADER_KIND,
 			http.header_iterator,
-			rawptr(&con_info.request.header),
+			rawptr(&request.header),
 		)
-		fmt.printf("headers: %v\n", con_info.request.header)
+		fmt.printf("headers[%d]: %v\n", num_headers, request.header)
 
-		if string(method) == libmhd.METHOD_POST {
-			con_info.post_processor = libmhd.MHD_create_post_processor(
-				connection,
-				libmhd.POST_BUFFER_SIZE,
-				http.post_iterator,
-				rawptr(con_info),
-			)
-			if con_info.post_processor == nil {
-				free(con_info)
-				return .NO
-			}
-		} // else GET
+		// if string(method) == libmhd.METHOD_POST {
+		// 	fmt.println("creating post processor")
+		// 	con_info.post_processor = libmhd.MHD_create_post_processor(
+		// 		connection,
+		// 		libmhd.POST_BUFFER_SIZE,
+		// 		http.post_iterator,
+		// 		rawptr(con_info),
+		// 	)
+		// 	if con_info.post_processor == nil {
+		// 		fmt.println("Error creating post processor")
+		// 		builtin.delete(con_info.request.header)
+		// 		builtin.delete(con_info.request.body)
+		// 		free(con_info.request)
+		// 		free(con_info)
+		// 		return .NO
+		// 	}
+		// } // else GET
 
-		con_cls^ = rawptr(con_info)
+		con_cls^ = rawptr(request)
 		return .YES
 	}
 
 	fmt.println("NOT FIRST TIME")
 
-	con_info := transmute(^http.Connection_Info)con_cls^
-	mux := transmute(^Router)cls
+	request := transmute(^http.Request)con_cls^
+
+	if request == nil {
+		fmt.println("listen: request is NULL")
+	}
+	if request.connection == nil {
+		fmt.println("listen: connection is NULL")
+	}
 
 	if string(method) == libmhd.METHOD_POST {
+		fmt.println("LISTEN POST:", upload_data_size^)
 		if upload_data_size^ != 0 {
-			libmhd.MHD_post_process(con_info.post_processor, upload_data, upload_data_size^)
+			append(&request.body, ..upload_data[:upload_data_size^])
+			// libmhd.MHD_post_process(con_info.post_processor, upload_data, upload_data_size^)
 			upload_data_size^ = 0
-		}
 
-		return .YES
+			// need to return here
+			return .YES
+		}
 	}
 
 	fmt.println("routing request...")
-	ok := serve_http(con_info.request, mux)
+	mux := transmute(^Router)cls
+	ok := serve_http(mux, request)
+	fmt.println("after routing request:", ok)
 
 	if ok {
 		return .YES
@@ -175,17 +192,20 @@ listen_and_serve :: proc "c" (
 	}
 }
 
-serve_http :: proc(r: ^http.Request, router: ^Router) -> (ok: bool) {
+serve_http :: proc(router: ^Router, r: ^http.Request) -> (ok: bool) {
 	w := http.make_response_writer()
 	defer http.destroy_response_writer(&w)
-	serve(router, &w, r)
+	route_request(router, &w, r)
+	append(&w.buffer, "hello there")
+	fmt.println("RESPONSE.buffer.len:", len(w.buffer))
 	response := libmhd.MHD_create_response_from_buffer(
 		len(w.buffer),
 		raw_data(w.buffer),
 		// .PERSISTENT,
 		.MUST_COPY,
 	)
-	fmt.println("RESPONSE:", w)
+	fmt.println("WRITER:", w)
+	fmt.println("RESP:", response)
 
 	if response == nil {
 		fmt.eprintln("Error: cannot create response")
@@ -196,8 +216,10 @@ serve_http :: proc(r: ^http.Request, router: ^Router) -> (ok: bool) {
 		hs := strings.clone_to_cstring(h, context.temp_allocator)
 		vs := strings.clone_to_cstring(v, context.temp_allocator)
 		ret := libmhd.MHD_add_response_header(response, hs, vs)
+		fmt.println("add_header:", ret, hs, vs)
 	}
 	ret := libmhd.MHD_queue_response(r.connection, libmhd.Status_Code(w.status_code), response)
+	fmt.println("QUEUE RESP ret:", ret)
 	libmhd.MHD_destroy_response(response)
 
 	return ret == .YES
@@ -214,13 +236,19 @@ start_server :: proc(
 	init(r)
 	server.router = r
 	server.daemon = libmhd.MHD_start_daemon(
-		.USE_THREAD_PER_CONNECTION,
+		.USE_AUTO_INTERNAL_THREAD | .USE_TCP_FASTOPEN | .USE_DEBUG,
+		// .USE_THREAD_PER_CONNECTION | .USE_AUTO | .USE_TCP_FASTOPEN | .USE_DEBUG,
 		port,
 		nil,
 		nil,
 		listen_and_serve,
 		rawptr(server.router),
-		.END,
+		libmhd.Option.NOTIFY_COMPLETED,
+		http.request_completed,
+		nil,
+		libmhd.Option.THREAD_POOL_SIZE,
+		4,
+		libmhd.Option.END,
 	)
 
 	if server.daemon == nil {
