@@ -230,7 +230,7 @@ set_response_header :: proc(w: ^Response_Writer, header: string, value: string) 
 }
 
 write_response :: proc(w: ^Response_Writer, bytes: []u8) -> (written: int, error: Http_Error) {
-	val := append(&w.buffer, ..bytes[:])
+	val := append(&w.buffer, ..bytes)
 	return val, nil
 }
 

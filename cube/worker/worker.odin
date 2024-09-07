@@ -39,6 +39,16 @@ collect_stats :: proc(w: ^Worker) {
 	fmt.println("I will collect stats")
 }
 
+get_tasks :: proc(w: ^Worker) -> (tasks: []task.Task) {
+	tasks = make([]task.Task, len(w.db))
+	i := 0
+	for _, t in w.db {
+		tasks[i] = t
+		i += 1
+	}
+	return tasks
+}
+
 run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 	t, ok := queue.pop_front_safe(&w.queue)
 	if !ok {

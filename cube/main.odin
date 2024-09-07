@@ -11,8 +11,6 @@ import "core:os"
 import "core:strings"
 import "core:time"
 import "docker/client"
-import "http"
-import "http/router"
 import "manager"
 import "node"
 import "task"
@@ -29,24 +27,6 @@ User_Formatter :: proc(fi: ^fmt.Info, arg: any, verb: rune) -> bool {
 		return false
 	}
 	return true
-}
-
-PAGE: string : "<html><head><title>blahblahblah</title></head><body>blah blah blah</body></html>"
-
-serve_static :: proc(w: ^http.Response_Writer, r: ^http.Request) {
-	fmt.println("IN STATIC: ")
-	w.header["Content-Type"] = "text/html"
-	http.set_response_status(w, .HTTP_OK)
-	http.write_response_string(w, PAGE)
-}
-
-setup_routes :: proc(mux: ^router.Router) {
-	fmt.println("SETUP ROUTES called")
-	sub := router.route(mux, "/tasks")
-	router.post(sub, "/", serve_static)
-	router.get(sub, "/", serve_static)
-	ssub := router.route(sub, "/{task_id}")
-	router.delete(ssub, "/", serve_static)
 }
 
 main :: proc() {
@@ -79,13 +59,6 @@ main :: proc() {
 	fmt.set_user_formatters(&formatters)
 	err := fmt.register_user_formatter(type_info_of(uuid.Identifier).id, User_Formatter)
 	assert(err == .None)
-
-	fmt.println("starting server on port 8080")
-	server, serr := router.start_server(8080, setup_routes)
-	if serr != nil {
-		panic("error starting http daemon")
-	}
-	defer router.stop_server(server)
 
 	w := worker.init("worker-1")
 	defer worker.deinit(&w)
