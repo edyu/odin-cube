@@ -57,41 +57,149 @@ destroy_router :: proc(router: ^Router) {
 	builtin.delete(router.sub)
 }
 
+sanitize_pattern :: proc(pattern: string) -> string {
+	if pattern == "" {
+		return "/"
+	} else if pattern != "/" && strings.ends_with(pattern, "/") {
+		return strings.trim_right(pattern, "/")
+	}
+	return pattern
+}
+
+starts_with :: proc(url: string, pattern: string) -> int {
+	if strings.starts_with(url, pattern) {
+		return len(pattern)
+	}
+	i := 0
+	j := 0
+	for j < len(pattern) {
+		if i >= len(url) {
+			return -1
+		}
+		if url[i] == pattern[j] {
+			i += 1
+			j += 1
+			continue
+		}
+		if pattern[j] == '{' {
+			cb := strings.index_rune(pattern[j:], '}')
+			if cb == -1 {
+				return -1
+			}
+			j += cb
+			if j + 1 == len(pattern) {
+				ns := strings.index_rune(url[i:], '/')
+				if ns == -1 {
+					return len(url)
+				} else {
+					return i + ns
+				}
+			} else {
+				if i + 1 >= len(url) {
+					return -1
+				}
+				ns := strings.index_rune(url[i + 1:], rune(pattern[j + 1]))
+				if ns == -1 {
+					return -1
+				}
+				i += ns - 1
+			}
+		} else {
+			return -1
+		}
+	}
+	return i
+}
+
+matches :: proc(url: string, pattern: string) -> bool {
+	if url == pattern {
+		return true
+	}
+	i := 0
+	j := 0
+	for i < len(url) && j < len(pattern) {
+		if url[i] == pattern[j] {
+			i += 1
+			j += 1
+			continue
+		}
+		if pattern[j] == '{' {
+			cb := strings.index_rune(pattern[j:], '}')
+			if cb == -1 {
+				return false
+			}
+			j += cb
+			if j + 1 == len(pattern) {
+				i = len(url) - 1
+			} else {
+				ns := strings.index_rune(url[i:], rune(pattern[j + 1]))
+				if ns == -1 {
+					return false
+				}
+				i += ns - 1
+			}
+		} else {
+			return false
+		}
+	}
+	return i == len(url) && j == len(pattern)
+}
+
 route :: proc(r: ^Router, pattern: string) -> ^Router {
 	sub := new_router()
-	r.sub[pattern] = sub
+	p := sanitize_pattern(pattern)
+	r.sub[p] = sub
 	return sub
 }
 
 get :: proc(r: ^Router, pattern: string, handler: http.Handler) {
-	append(&r.tree, Node{.GET, pattern, handler})
+	p := sanitize_pattern(pattern)
+	append(&r.tree, Node{.GET, p, handler})
 }
 
 post :: proc(r: ^Router, pattern: string, handler: http.Handler) {
-	append(&r.tree, Node{.POST, pattern, handler})
+	p := sanitize_pattern(pattern)
+	append(&r.tree, Node{.POST, p, handler})
 }
 
 put :: proc(r: ^Router, pattern: string, handler: http.Handler) {
-	append(&r.tree, Node{.PUT, pattern, handler})
+	p := sanitize_pattern(pattern)
+	append(&r.tree, Node{.PUT, p, handler})
 }
 
 delete :: proc(r: ^Router, pattern: string, handler: http.Handler) {
-	append(&r.tree, Node{.DELETE, pattern, handler})
+	p := sanitize_pattern(pattern)
+	append(&r.tree, Node{.DELETE, p, handler})
 }
 
-route_request :: proc(router: ^Router, w: ^http.Response_Writer, r: ^http.Request) -> bool {
-	fmt.println("IN ROUTE")
+route_request :: proc(
+	router: ^Router,
+	w: ^http.Response_Writer,
+	r: ^http.Request,
+	url: string,
+) -> bool {
+	fmt.println("IN ROUTE:", url)
 	m := router.method_map[r.method]
 
+	u := sanitize_pattern(url)
 	fmt.println("ROUTE: BODY IS", string(r.body[:]))
 	for p, &s in router.sub {
-		if strings.starts_with(r.url, p) {
-			return route_request(s, w, r)
+		off := starts_with(u, p)
+		if off != -1 {
+			if off == len(u) {
+				fmt.println("SUB ROUTE:", p, "-> /")
+				return route_request(s, w, r, "/")
+			} else {
+				u = u[off:]
+				fmt.println("SUB ROUTE:", p, "->", u)
+				return route_request(s, w, r, u)
+			}
 		}
 	}
 
 	for n in router.tree {
-		if n.method == m && n.pattern == r.url {
+		if n.method == m && matches(u, n.pattern) {
+			fmt.println("FOUND:", m, u, r.url)
 			n.handler(w, r)
 			return true
 		}
@@ -195,9 +303,7 @@ listen_and_serve :: proc "c" (
 serve_http :: proc(router: ^Router, r: ^http.Request) -> (ok: bool) {
 	w := http.make_response_writer()
 	defer http.destroy_response_writer(&w)
-	route_request(router, &w, r)
-	append(&w.buffer, "hello there")
-	fmt.println("RESPONSE.buffer.len:", len(w.buffer))
+	route_request(router, &w, r, r.url)
 	response := libmhd.MHD_create_response_from_buffer(
 		len(w.buffer),
 		raw_data(w.buffer),

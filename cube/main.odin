@@ -34,7 +34,7 @@ User_Formatter :: proc(fi: ^fmt.Info, arg: any, verb: rune) -> bool {
 PAGE: string : "<html><head><title>blahblahblah</title></head><body>blah blah blah</body></html>"
 
 serve_static :: proc(w: ^http.Response_Writer, r: ^http.Request) {
-	fmt.println("IN STATIC")
+	fmt.println("IN STATIC: ")
 	w.header["Content-Type"] = "text/html"
 	http.set_response_status(w, .HTTP_OK)
 	http.write_response_string(w, PAGE)
@@ -42,7 +42,11 @@ serve_static :: proc(w: ^http.Response_Writer, r: ^http.Request) {
 
 setup_routes :: proc(mux: ^router.Router) {
 	fmt.println("SETUP ROUTES called")
-	router.get(mux, "/", serve_static)
+	sub := router.route(mux, "/tasks")
+	router.post(sub, "/", serve_static)
+	router.get(sub, "/", serve_static)
+	ssub := router.route(sub, "/{task_id}")
+	router.delete(ssub, "/", serve_static)
 }
 
 main :: proc() {
