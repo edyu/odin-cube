@@ -8,6 +8,7 @@ import "core:fmt"
 import "core:log"
 import "core:mem"
 import "core:os"
+import "core:strconv"
 import "core:strings"
 import "core:time"
 import "docker/client"
@@ -60,9 +61,28 @@ main :: proc() {
 	err := fmt.register_user_formatter(type_info_of(uuid.Identifier).id, User_Formatter)
 	assert(err == .None)
 
+	host := os.get_env("CUBE_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+
+	port_str := os.get_env("CUBE_PORT")
+	port: u16 = 5555
+	if port_str != "" {
+		port = u16(strconv.atoi(port_str))
+	}
+
+	fmt.println("Starting Cube worker")
+
 	w := worker.init("worker-1")
 	defer worker.deinit(&w)
 
+	api := worker.start(host, port, &w)
+	defer worker.stop(&api)
+
+	run_tasks(&w)
+
+	/*
 	t := task.new("test-container-1", .Scheduled, "strm/helloworld-http")
 
 	fmt.println("starting task")
@@ -93,6 +113,7 @@ main :: proc() {
 		panic("error stopping task")
 	}
 	fmt.printf("task after stop: %s\n", t)
+	*/
 
 	// m := manager.init([]string{w.name})
 	// defer manager.deinit(&m)
@@ -116,6 +137,21 @@ main :: proc() {
 	// time.sleep(time.Second * 5)
 	// fmt.printf("stopping container %s\n", create_result.container_id)
 	// _ = stop_container(&docker_task, create_result.container_id)
+}
+
+run_tasks :: proc(w: ^worker.Worker) {
+	for {
+		if w.queue.len != 0 {
+			result := worker.run_task(w)
+			if result.error != nil {
+				log.debugf("Error running task: %v", result.error)
+			}
+		} else {
+			log.debug("No tasks to process currently.")
+		}
+		log.debug("Sleeping for 10 seconds.")
+		time.sleep(10 * time.Second)
+	}
 }
 
 create_container :: proc() -> (docker: task.Docker, result: task.Docker_Result) {

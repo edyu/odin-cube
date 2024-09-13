@@ -6,9 +6,9 @@ import "core:fmt"
 
 Api :: struct {
 	address: string,
-	port:    int,
+	port:    u16,
 	worker:  ^Worker,
-	router:  ^router.Router,
+	server:  router.Router_Server,
 }
 
 Error_Response :: struct {
@@ -34,12 +34,20 @@ setup_routes :: proc(mux: ^router.Router) {
 	router.delete(ssub, "/", serve_static)
 }
 
-start :: proc(api: ^Api) {
-	fmt.println("starting server on port 8080")
-	server, serr := router.start_server(8080, setup_routes)
-	if serr != nil {
+start :: proc(address: string, port: u16, worker: ^Worker) -> (api: Api) {
+	api.address = address
+	api.port = port
+	api.worker = worker
+	fmt.printf("starting server %s:%d\n", address, port)
+	server, err := router.start_server(port, setup_routes)
+	if err != nil {
 		panic("error starting http daemon")
 	}
-	defer router.stop_server(server)
+	api.server = server
+	return api
+}
+
+stop :: proc(api: ^Api) {
+	router.stop_server(api.server)
 }
 
