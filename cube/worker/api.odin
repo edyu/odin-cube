@@ -7,7 +7,6 @@ import "core:fmt"
 Api :: struct {
 	address: string,
 	port:    u16,
-	worker:  ^Worker,
 	server:  router.Router_Server,
 }
 
@@ -25,21 +24,20 @@ serve_static :: proc(w: ^http.Response_Writer, r: ^http.Request) {
 	http.write_response_string(w, PAGE)
 }
 
-setup_routes :: proc(mux: ^router.Router) {
+setup_routes :: proc(mux: ^router.Router, ctx: rawptr) {
 	fmt.println("SETUP ROUTES called")
-	sub := router.route(mux, "/tasks")
-	router.post(sub, "/", serve_static)
-	router.get(sub, "/", serve_static)
-	ssub := router.route(sub, "/{task_id}")
-	router.delete(ssub, "/", serve_static)
+	sub := router.route(mux, "/tasks", ctx)
+	router.post(sub, "/", start_task_handler)
+	router.get(sub, "/", get_task_handler)
+	ssub := router.route(sub, "/{task_id}", ctx)
+	router.delete(ssub, "/", stop_task_handler)
 }
 
 start :: proc(address: string, port: u16, worker: ^Worker) -> (api: Api) {
 	api.address = address
 	api.port = port
-	api.worker = worker
 	fmt.printf("starting server %s:%d\n", address, port)
-	server, err := router.start_server(port, setup_routes)
+	server, err := router.start_server(port, setup_routes, worker)
 	if err != nil {
 		panic("error starting http daemon")
 	}

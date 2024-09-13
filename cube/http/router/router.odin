@@ -8,6 +8,8 @@ import "core:c"
 import "core:fmt"
 import "core:strings"
 
+Route_Handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request)
+
 Router_Server :: struct {
 	daemon: ^libmhd.Daemon,
 	router: ^Router,
@@ -16,16 +18,18 @@ Router_Server :: struct {
 Node :: struct {
 	method:  http.Method,
 	pattern: string,
-	handler: http.Handler,
+	handler: Route_Handler,
 }
 
 Router :: struct {
 	method_map: map[string]http.Method,
 	sub:        map[string]^Router,
 	tree:       [dynamic]Node,
+	ctx:        rawptr,
 }
 
-init_router :: proc(router: ^Router) {
+init_router :: proc(router: ^Router, ctx: rawptr) {
+	router.ctx = ctx
 	router.sub = make(map[string]^Router)
 	router.tree = make([dynamic]Node)
 	router.method_map = make(map[string]http.Method)
@@ -36,14 +40,14 @@ init_router :: proc(router: ^Router) {
 	router.method_map[libmhd.METHOD_PATCH] = .PATCH
 }
 
-make_router :: proc() -> (router: Router) {
-	init_router(&router)
+make_router :: proc(ctx: rawptr) -> (router: Router) {
+	init_router(&router, ctx)
 	return router
 }
 
-new_router :: proc() -> (router: ^Router) {
+new_router :: proc(ctx: rawptr) -> (router: ^Router) {
 	router = new(Router)
-	init_router(router)
+	init_router(router, ctx)
 	return router
 }
 
@@ -145,29 +149,29 @@ matches :: proc(url: string, pattern: string) -> bool {
 	return i == len(url) && j == len(pattern)
 }
 
-route :: proc(r: ^Router, pattern: string) -> ^Router {
-	sub := new_router()
+route :: proc(r: ^Router, pattern: string, ctx: rawptr) -> ^Router {
+	sub := new_router(ctx)
 	p := sanitize_pattern(pattern)
 	r.sub[p] = sub
 	return sub
 }
 
-get :: proc(r: ^Router, pattern: string, handler: http.Handler) {
+get :: proc(r: ^Router, pattern: string, handler: Route_Handler) {
 	p := sanitize_pattern(pattern)
 	append(&r.tree, Node{.GET, p, handler})
 }
 
-post :: proc(r: ^Router, pattern: string, handler: http.Handler) {
+post :: proc(r: ^Router, pattern: string, handler: Route_Handler) {
 	p := sanitize_pattern(pattern)
 	append(&r.tree, Node{.POST, p, handler})
 }
 
-put :: proc(r: ^Router, pattern: string, handler: http.Handler) {
+put :: proc(r: ^Router, pattern: string, handler: Route_Handler) {
 	p := sanitize_pattern(pattern)
 	append(&r.tree, Node{.PUT, p, handler})
 }
 
-delete :: proc(r: ^Router, pattern: string, handler: http.Handler) {
+delete :: proc(r: ^Router, pattern: string, handler: Route_Handler) {
 	p := sanitize_pattern(pattern)
 	append(&r.tree, Node{.DELETE, p, handler})
 }
@@ -200,7 +204,7 @@ route_request :: proc(
 	for n in router.tree {
 		if n.method == m && matches(u, n.pattern) {
 			fmt.println("FOUND:", m, u, r.url)
-			n.handler(w, r)
+			n.handler(router.ctx, w, r)
 			return true
 		}
 	}
@@ -333,13 +337,14 @@ serve_http :: proc(router: ^Router, r: ^http.Request) -> (ok: bool) {
 
 start_server :: proc(
 	port: u16,
-	init: proc(mux: ^Router),
+	init: proc(mux: ^Router, ctx: rawptr),
+	ctx: rawptr,
 ) -> (
 	server: Router_Server,
 	error: http.Http_Error,
 ) {
-	r := new_router()
-	init(r)
+	r := new_router(ctx)
+	init(r, ctx)
 	server.router = r
 	server.daemon = libmhd.MHD_start_daemon(
 		.USE_AUTO_INTERNAL_THREAD | .USE_TCP_FASTOPEN | .USE_DEBUG,

@@ -8,7 +8,8 @@ import "core:fmt"
 import "core:log"
 import "core:strings"
 
-start_task_handler :: proc(a: ^Api, w: ^http.Response_Writer, r: ^http.Request) {
+start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
+	worker := transmute(^Worker)ctx
 	te := task.Event{}
 	err := json.unmarshal(r.body[:], &te)
 	if err != nil {
@@ -21,20 +22,22 @@ start_task_handler :: proc(a: ^Api, w: ^http.Response_Writer, r: ^http.Request) 
 		return
 	}
 
-	add_task(a.worker, te.task)
+	add_task(worker, te.task)
 	log.debugf("Added task %v\n", te.task.id)
 	http.set_response_status(w, .HTTP_CREATED)
 	m, e := json.marshal(te.task)
 	append(&w.buffer, ..m)
 }
 
-get_task_handler :: proc(a: ^Api, w: ^http.Response_Writer, r: ^http.Request) {
+get_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
+	worker := transmute(^Worker)ctx
 	w.header["Content-Type"] = "application/json"
 	http.set_response_status(w, .HTTP_OK)
-	json.marshal(get_tasks(a.worker))
+	json.marshal(get_tasks(worker))
 }
 
-stop_task_handler :: proc(a: ^Api, w: ^http.Response_Writer, r: ^http.Request) {
+stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
+	worker := transmute(^Worker)ctx
 	task_id := r.url
 	if task_id == "" {
 		log.debugf("No task id passed in request.\n")
@@ -43,9 +46,9 @@ stop_task_handler :: proc(a: ^Api, w: ^http.Response_Writer, r: ^http.Request) {
 
 	t_id, err := uuid.read(task_id)
 
-	stopping_task := a.worker.db[t_id]
+	stopping_task := worker.db[t_id]
 	stopping_task.state = task.State.Completed
-	add_task(a.worker, stopping_task)
+	add_task(worker, stopping_task)
 
 	log.debugf(
 		"Added task %v to stop container %v\n",
