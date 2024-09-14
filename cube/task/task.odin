@@ -40,20 +40,29 @@ Task :: struct {
 	name:           string,
 	state:          State,
 	image:          string,
-	cpu:            f64 `fmt:"-"`,
-	memory:         i64 `fmt:"-"`,
-	disk:           i64 `fmt:"-"`,
-	exposed_ports:  connection.Port_Set `fmt:"-"`,
-	host_ports:     connection.Port_Map `fmt:"-"`,
-	port_bindings:  map[string]string `fmt:"-"`,
-	restart_policy: string,
-	start_time:     time.Time `fmt:"-"`,
-	finish_time:    time.Time `fmt:"-"`,
-	restart_count:  int `fmt:"-"`,
+	cpu:            f64 `json:"cpu,omitempty" fmt:"-"`,
+	memory:         i64 `json:"memory,omitempty" fmt:"-"`,
+	disk:           i64 `json:"disk,omitempty" fmt:"-"`,
+	exposed_ports:  connection.Port_Set `json:"exposedPorts,omitempty" fmt:"-"`,
+	host_ports:     connection.Port_Map `json:"hostPorts,omitempty" fmt:"-"`,
+	port_bindings:  map[string]string `json:"portBindings,omitempty" fmt:"-"`,
+	restart_policy: string `json:"restartPolicy,omitempty"`,
+	start_time:     time.Time `json:"startTime,omitempty" fmt:"-"`,
+	finish_time:    time.Time `json:"finishTime,omitempty" fmt:"-"`,
+	restart_count:  int `json:"restartCount,omitempty" fmt:"-"`,
 }
 
 new :: proc(name: string, state: State, image: string) -> (task: Task) {
 	task.id = uuid.generate_v4()
+	task.name = name
+	task.state = state
+	task.image = image
+
+	return task
+}
+
+make :: proc(id: uuid.Identifier, name: string, state: State, image: string) -> (task: Task) {
+	task.id = id
 	task.name = name
 	task.state = state
 	task.image = image
