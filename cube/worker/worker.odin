@@ -5,6 +5,7 @@ import "core:encoding/uuid"
 import "core:fmt"
 import "core:time"
 
+import "../stats"
 import "../task"
 
 Worker_Error :: struct {
@@ -15,7 +16,8 @@ Worker :: struct {
 	name:       string,
 	queue:      queue.Queue(task.Task) `fmt:"-"`,
 	db:         map[uuid.Identifier]task.Task `fmt:"-"`,
-	task_count: int,
+	task_count: uint,
+	stats:      stats.Stats,
 }
 
 init :: proc(name: string) -> (w: Worker) {
@@ -36,7 +38,10 @@ add_task :: proc(w: ^Worker, t: task.Task) {
 }
 
 collect_stats :: proc(w: ^Worker) {
-	fmt.println("I will collect stats")
+	fmt.println("Collecting stats")
+	w.stats = stats.get_stats()
+	fmt.println("stats:", w.stats)
+	w.stats.task_count = w.task_count
 }
 
 get_tasks :: proc(w: ^Worker) -> (tasks: []task.Task) {

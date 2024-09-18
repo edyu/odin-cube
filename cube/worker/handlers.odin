@@ -118,3 +118,11 @@ stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reques
 	http.set_response_status(w, .HTTP_NO_CONTENT)
 }
 
+get_stats_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
+	worker := transmute(^Worker)ctx
+	w.header["Content-Type"] = "application/json"
+	http.set_response_status(w, .HTTP_OK)
+	m, _ := json.marshal(worker.stats)
+	append(&w.buffer, ..m)
+}
+

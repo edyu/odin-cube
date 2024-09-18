@@ -15,15 +15,6 @@ Error_Response :: struct {
 	message:     string,
 }
 
-PAGE: string : "<html><head><title>blahblahblah</title></head><body>blah blah blah</body></html>"
-
-serve_static :: proc(w: ^http.Response_Writer, r: ^http.Request) {
-	fmt.println("IN STATIC: ")
-	w.header["Content-Type"] = "text/html"
-	http.set_response_status(w, .HTTP_OK)
-	http.write_response_string(w, PAGE)
-}
-
 setup_routes :: proc(mux: ^router.Router, ctx: rawptr) {
 	fmt.println("SETUP ROUTES called")
 	sub := router.route(mux, "/tasks", ctx)
@@ -31,6 +22,8 @@ setup_routes :: proc(mux: ^router.Router, ctx: rawptr) {
 	router.get(sub, "/", get_task_handler)
 	ssub := router.route(sub, "/{task_id}", ctx)
 	router.delete(ssub, "/", stop_task_handler)
+	sub2 := router.route(mux, "/stats", ctx)
+	router.get(sub2, "/", get_stats_handler)
 }
 
 start :: proc(address: string, port: u16, worker: ^Worker) -> (api: Api) {
