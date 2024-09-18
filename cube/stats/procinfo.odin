@@ -55,18 +55,10 @@ Load_Avg :: struct {
 }
 
 read_mem_info :: proc(path: string) -> (info: Mem_Info, error: Stats_Error) {
-	cpath := strings.clone_to_cstring(path, context.temp_allocator)
-	fd, errno := linux.open(cpath, {})
-	if errno != .NONE {
-		return info, Stats_Parse_Error{path, "open"}
-	}
-	defer linux.close(fd)
-
+	fd := os.open(path) or_return
+	defer os.close(fd)
 	data: [512]u8
-	read, errno2 := linux.read(fd, data[:])
-	if errno2 != .NONE {
-		return info, Stats_Parse_Error{path, "read"}
-	}
+	os.read(fd, data[:]) or_return
 	// data := os.read_entire_file_or_err(path) or_return
 	// defer delete(data)
 
@@ -122,18 +114,10 @@ read_disk :: proc(path: string) -> (disk: Disk, error: Stats_Error) {
 }
 
 read_stat :: proc(path: string) -> (cpustat: Cpu_Stat, error: Stats_Error) {
-	cpath := strings.clone_to_cstring(path, context.temp_allocator)
-	fd, errno := linux.open(cpath, {})
-	if errno != .NONE {
-		return cpustat, Stats_Parse_Error{path, "open"}
-	}
-	defer linux.close(fd)
-
+	fd := os.open(path) or_return
+	defer os.close(fd)
 	data: [512]u8
-	read, errno2 := linux.read(fd, data[:])
-	if errno2 != .NONE {
-		return cpustat, Stats_Parse_Error{path, "read"}
-	}
+	os.read(fd, data[:]) or_return
 	// data := os.read_entire_file_or_err(path) or_return
 	// defer delete(data)
 
@@ -207,18 +191,10 @@ read_stat :: proc(path: string) -> (cpustat: Cpu_Stat, error: Stats_Error) {
 }
 
 read_load_avg :: proc(path: string) -> (loadavg: Load_Avg, error: Stats_Error) {
-	cpath := strings.clone_to_cstring(path, context.temp_allocator)
-	fd, errno := linux.open(cpath, {})
-	if errno != .NONE {
-		return loadavg, Stats_Parse_Error{path, "open"}
-	}
-	defer linux.close(fd)
-
+	fd := os.open(path) or_return
+	defer os.close(fd)
 	data: [512]u8
-	read, errno2 := linux.read(fd, data[:])
-	if errno2 != .NONE {
-		return loadavg, Stats_Parse_Error{path, "read"}
-	}
+	os.read(fd, data[:]) or_return
 	// data := os.read_entire_file_or_err(path) or_return
 	// defer delete(data)
 
