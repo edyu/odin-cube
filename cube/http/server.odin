@@ -1,6 +1,7 @@
 package http
 
 import "../libmhd"
+import "base:builtin"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
@@ -46,8 +47,8 @@ make_response_writer :: proc() -> (response: Response_Writer) {
 }
 
 destroy_response_writer :: proc(response: ^Response_Writer) {
-	delete(response.header)
-	delete(response.buffer)
+	builtin.delete(response.header)
+	builtin.delete(response.buffer)
 }
 
 set_response_status :: proc(w: ^Response_Writer, code: Status_Code) {
@@ -137,8 +138,8 @@ request_completed :: proc "c" (
 		// libmhd.MHD_destroy_post_processor(con_info.post_processor)
 	}
 
-	delete(request.body)
-	delete(request.header)
+	builtin.delete(request.body)
+	builtin.delete(request.header)
 	free(request)
 	// free(con_info)
 	con_cls^ = nil
