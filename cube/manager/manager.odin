@@ -1,25 +1,30 @@
 package manager
 
+import "../http"
 import "../task"
-import "core:fmt"
-
 import "core:container/queue"
+import "core:encoding/json"
 import "core:encoding/uuid"
+import "core:fmt"
+import "core:log"
+import "core:strings"
 
 Manager :: struct {
-	pending:         queue.Queue(task.Task) `fmt:"-"`,
-	task_db:         map[string][]^task.Task `fmt:"-"`,
-	event_db:        map[string][]^task.Event `fmt:"-"`,
+	pending:         queue.Queue(task.Event) `fmt:"-"`,
+	task_db:         map[uuid.Identifier]^task.Task `fmt:"-"`,
+	event_db:        map[uuid.Identifier]^task.Event `fmt:"-"`,
 	workers:         [dynamic]string,
-	worker_task_map: map[string][]uuid.Identifier `fmt:"-"`,
+	worker_task_map: map[string][dynamic]uuid.Identifier `fmt:"-"`,
 	task_worker_map: map[uuid.Identifier]string `fmt:"-"`,
+	last_worker:     int,
 }
 
 init :: proc(workers: []string) -> (m: Manager) {
+	http.client_init()
 	queue.init(&m.pending)
-	m.task_db = make(map[string][]^task.Task)
-	m.event_db = make(map[string][]^task.Event)
-	m.worker_task_map = make(map[string][]uuid.Identifier)
+	m.task_db = make(map[uuid.Identifier]^task.Task)
+	m.event_db = make(map[uuid.Identifier]^task.Event)
+	m.worker_task_map = make(map[string][dynamic]uuid.Identifier)
 	m.task_worker_map = make(map[uuid.Identifier]string)
 	m.workers = make([dynamic]string)
 	for w in workers {
@@ -30,6 +35,7 @@ init :: proc(workers: []string) -> (m: Manager) {
 }
 
 deinit :: proc(m: ^Manager) {
+	http.client_deinit()
 	queue.destroy(&m.pending)
 	delete_map(m.task_db)
 	delete_map(m.event_db)
@@ -38,9 +44,17 @@ deinit :: proc(m: ^Manager) {
 	delete(m.workers)
 }
 
+select_worker :: proc(m: ^Manager) -> string {
+	new_worker: int
+	if m.last_worker + 1 < len(m.workers) {
+		new_worker = m.last_worker + 1
+		m.last_worker += 1
+	} else {
+		new_worker = 0
+		m.last_worker = 0
+	}
 
-select_worker :: proc(m: ^Manager) {
-	fmt.println("I will select an appropriate worker")
+	return m.workers[new_worker]
 }
 
 update_tasks :: proc(m: ^Manager) {
@@ -48,6 +62,31 @@ update_tasks :: proc(m: ^Manager) {
 }
 
 send_work :: proc(m: ^Manager) {
-	fmt.println("I will send work to workers")
+	if queue.len(m.pending) > 0 {
+		w := select_worker(m)
+
+		e := queue.pop_front(&m.pending)
+		t := e.task
+
+		m.event_db[e.id] = &e
+		append(&m.worker_task_map[w], e.task.id)
+		m.task_worker_map[t.id] = w
+
+		t.state = .Scheduled
+		m.task_db[t.id] = &t
+
+		data, jerr := json.marshal(e)
+		if jerr != nil {
+			log.warnf("Unable to marshal task object: %v: %v.", t, jerr)
+		}
+		sb: strings.Builder
+		url := fmt.sbprintf(&sb, "http://%s/tasks", w)
+		resp, err := http.post(url, "application/json", string(data))
+		if err != nil {
+			log.warnf("Unable to send work: %v.", err)
+		} else {
+			log.debugf("work sent: %v", resp)
+		}
+	}
 }
 

@@ -341,7 +341,7 @@ start_server :: proc(
 	ctx: rawptr,
 ) -> (
 	server: Router_Server,
-	error: http.Http_Error,
+	error: http.Http_Server_Error,
 ) {
 	r := new_router(ctx)
 	init(r, ctx)

@@ -13,6 +13,7 @@ import "core:strings"
 import "core:thread"
 import "core:time"
 import "docker/client"
+import "http"
 import "manager"
 import "node"
 import "task"
@@ -78,13 +79,7 @@ main :: proc() {
 	w := worker.init("worker-1")
 	defer worker.deinit(&w)
 
-	task_thread := thread.create(run_tasks)
-	defer thread.destroy(task_thread)
-	task_thread.data = &w
-	thread.start(task_thread)
-
-
-	stat_thread := thread.create(collect_stats)
+	stat_thread := thread.create(thread_collect_stats)
 	defer thread.destroy(stat_thread)
 	stat_thread.data = &w
 	thread.start(stat_thread)
@@ -92,7 +87,12 @@ main :: proc() {
 	api := worker.start(host, port, &w)
 	defer worker.stop(&api)
 
-	time.sleep(60 * time.Second)
+	// task_thread := thread.create(run_tasks)
+	// defer thread.destroy(task_thread)
+	// task_thread.data = &w
+	// thread.start(task_thread)
+
+	run_tasks(&w)
 
 	/*
 	t := task.new("test-container-1", .Scheduled, "strm/helloworld-http")
@@ -151,7 +151,7 @@ main :: proc() {
 	// _ = stop_container(&docker_task, create_result.container_id)
 }
 
-collect_stats :: proc(t: ^thread.Thread) {
+thread_collect_stats :: proc(t: ^thread.Thread) {
 	w := transmute(^worker.Worker)t.data
 	for {
 		worker.collect_stats(w)
@@ -159,8 +159,12 @@ collect_stats :: proc(t: ^thread.Thread) {
 	}
 }
 
-run_tasks :: proc(t: ^thread.Thread) {
+thread_run_tasks :: proc(t: ^thread.Thread) {
 	w := transmute(^worker.Worker)t.data
+	run_tasks(w)
+}
+
+run_tasks :: proc(w: ^worker.Worker) {
 	for {
 		if w.queue.len != 0 {
 			result := worker.run_task(w)
