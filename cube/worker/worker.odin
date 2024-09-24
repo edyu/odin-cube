@@ -85,6 +85,21 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 	return result
 }
 
+run_tasks :: proc(w: ^Worker) {
+	for {
+		if w.queue.len != 0 {
+			result := run_task(w)
+			if result.error != nil {
+				fmt.eprintfln("Error running task: %v", result.error)
+			}
+		} else {
+			fmt.println("No tasks to process currently.")
+		}
+		fmt.println("Sleeping for 10 seconds.")
+		time.sleep(10 * time.Second)
+	}
+}
+
 start_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	t.start_time = time.now()
 	config := task.new_config(t)

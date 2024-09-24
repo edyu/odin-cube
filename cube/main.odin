@@ -63,37 +63,68 @@ main :: proc() {
 	err := fmt.register_user_formatter(type_info_of(uuid.Identifier).id, User_Formatter)
 	assert(err == .None)
 
-	host := os.get_env("CUBE_HOST")
-	if host == "" {
-		host = "localhost"
+	whost := os.get_env("CUBE_WORKER_HOST")
+	if whost == "" {
+		whost = "localhost"
 	}
 
-	port_str := os.get_env("CUBE_PORT")
-	port: u16 = 5555
-	if port_str != "" {
-		port = u16(strconv.atoi(port_str))
+	wport_str := os.get_env("CUBE_WORKER_PORT")
+	wport: u16 = 5555
+	if wport_str != "" {
+		wport = u16(strconv.atoi(wport_str))
 	}
-
-	fmt.println("Starting Cube worker")
 
 	w := worker.init("worker-1")
 	defer worker.deinit(&w)
+
+	task_thread := thread.create(thread_run_tasks)
+	defer thread.destroy(task_thread)
+	task_thread.data = &w
+	thread.start(task_thread)
 
 	stat_thread := thread.create(thread_collect_stats)
 	defer thread.destroy(stat_thread)
 	stat_thread.data = &w
 	thread.start(stat_thread)
 
-	api := worker.start(host, port, &w)
-	defer worker.stop(&api)
+	fmt.printfln("Starting Cube worker %s:%d", whost, wport)
+	wapi := worker.start(whost, wport, &w)
+	defer worker.stop(&wapi)
 
-	// task_thread := thread.create(run_tasks)
-	// defer thread.destroy(task_thread)
-	// task_thread.data = &w
-	// thread.start(task_thread)
+	mhost := os.get_env("CUBE_MANAGER_HOST")
+	if mhost == "" {
+		mhost = "localhost"
+	}
 
-	run_tasks(&w)
+	mport_str := os.get_env("CUBE_MANAGER_PORT")
+	mport: u16 = 5556
+	if mport_str != "" {
+		mport = u16(strconv.atoi(mport_str))
+	}
 
+	sb: strings.Builder
+	defer strings.builder_destroy(&sb)
+	wname := fmt.sbprintf(&sb, "%s:%d", whost, wport)
+	workers := []string{wname}
+
+	m := manager.init(workers)
+	defer manager.deinit(&m)
+
+	process_thread := thread.create(thread_process_tasks)
+	defer thread.destroy(process_thread)
+	process_thread.data = &m
+	thread.start(process_thread)
+
+	update_thread := thread.create(thread_update_tasks)
+	defer thread.destroy(update_thread)
+	update_thread.data = &m
+	thread.start(update_thread)
+
+	fmt.printfln("Starting Cube manager %s:%d", mhost, mport)
+	mapi := manager.start(mhost, mport, &m)
+	defer manager.stop(&mapi)
+
+	time.sleep(1 * time.Minute)
 	/*
 	t := task.new("test-container-1", .Scheduled, "strm/helloworld-http")
 
@@ -161,22 +192,17 @@ thread_collect_stats :: proc(t: ^thread.Thread) {
 
 thread_run_tasks :: proc(t: ^thread.Thread) {
 	w := transmute(^worker.Worker)t.data
-	run_tasks(w)
+	worker.run_tasks(w)
 }
 
-run_tasks :: proc(w: ^worker.Worker) {
-	for {
-		if w.queue.len != 0 {
-			result := worker.run_task(w)
-			if result.error != nil {
-				log.debugf("Error running task: %v", result.error)
-			}
-		} else {
-			log.debug("No tasks to process currently.")
-		}
-		log.debug("Sleeping for 10 seconds.")
-		time.sleep(10 * time.Second)
-	}
+thread_process_tasks :: proc(t: ^thread.Thread) {
+	m := transmute(^manager.Manager)t.data
+	manager.process_tasks(m)
+}
+
+thread_update_tasks :: proc(t: ^thread.Thread) {
+	m := transmute(^manager.Manager)t.data
+	manager.update_tasks(m)
 }
 
 create_container :: proc() -> (docker: task.Docker, result: task.Docker_Result) {

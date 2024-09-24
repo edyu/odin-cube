@@ -9,6 +9,7 @@ import "core:encoding/uuid"
 import "core:fmt"
 import "core:log"
 import "core:strings"
+import "core:time"
 
 Manager :: struct {
 	pending:         queue.Queue(task.Event) `fmt:"-"`,
@@ -59,7 +60,7 @@ select_worker :: proc(m: ^Manager) -> string {
 	return m.workers[new_worker]
 }
 
-update_tasks :: proc(m: ^Manager) {
+update_task :: proc(m: ^Manager) {
 	for worker in m.workers {
 		fmt.printfln("Checking worker %v for task updates", worker)
 		sb: strings.Builder
@@ -95,6 +96,16 @@ update_tasks :: proc(m: ^Manager) {
 				}
 			}
 		}
+	}
+}
+
+update_tasks :: proc(m: ^Manager) {
+	for {
+		fmt.println("Checking for task updates from workers")
+		update_task(m)
+		fmt.println("Task updates completed")
+		fmt.println("Sleeping for 15 seconds")
+		time.sleep(15 * time.Second)
 	}
 }
 
@@ -147,7 +158,26 @@ send_work :: proc(m: ^Manager) {
 	}
 }
 
+process_tasks :: proc(m: ^Manager) {
+	for {
+		fmt.println("Processing any tasks in the queue")
+		send_work(m)
+		fmt.println("Sleeping for 10 seconds")
+		time.sleep(10 * time.Second)
+	}
+}
+
 add_task :: proc(m: ^Manager, e: task.Event) {
 	queue.push_back(&m.pending, e)
+}
+
+get_tasks :: proc(m: ^Manager) -> (tasks: []^task.Task) {
+	tasks = make([]^task.Task, len(m.task_db))
+	i := 0
+	for _, t in m.task_db {
+		tasks[i] = t
+		i += 1
+	}
+	return tasks
 }
 

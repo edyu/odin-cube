@@ -88,6 +88,14 @@ Event :: struct {
 	task:      Task,
 }
 
+make_event :: proc(id: uuid.Identifier, state: State, task: Task) -> (event: Event) {
+	event.id = id
+	event.state = state
+	event.timestamp = time.now()
+	event.task = task
+	return event
+}
+
 new_event :: proc(task: Task) -> (event: Event) {
 	event.id = uuid.generate_v4()
 	event.state = .Pending
