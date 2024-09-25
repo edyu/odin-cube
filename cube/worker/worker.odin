@@ -1,10 +1,10 @@
 package worker
 
 import "core:container/queue"
-import "core:encoding/uuid"
 import "core:fmt"
 import "core:time"
 
+import "../lib"
 import "../stats"
 import "../task"
 
@@ -15,7 +15,7 @@ Worker_Error :: struct {
 Worker :: struct {
 	name:       string,
 	queue:      queue.Queue(task.Task) `fmt:"-"`,
-	db:         map[uuid.Identifier]task.Task `fmt:"-"`,
+	db:         map[lib.UUID]^task.Task `fmt:"-"`,
 	task_count: uint,
 	stats:      stats.Stats,
 }
@@ -23,7 +23,7 @@ Worker :: struct {
 init :: proc(name: string) -> (w: Worker) {
 	w.name = name
 	queue.init(&w.queue)
-	w.db = make(map[uuid.Identifier]task.Task)
+	w.db = make(map[lib.UUID]^task.Task)
 	w.task_count = 0
 	return w
 }
@@ -38,17 +38,20 @@ add_task :: proc(w: ^Worker, t: task.Task) {
 }
 
 collect_stats :: proc(w: ^Worker) {
-	fmt.println("Collecting stats")
-	w.stats = stats.get_stats()
-	fmt.println("stats:", w.stats)
-	w.stats.task_count = w.task_count
+	for {
+		fmt.println("Collecting stats")
+		w.stats = stats.get_stats()
+		w.stats.task_count = w.task_count
+		// w.task_count = w.stats.task_count
+		time.sleep(15 * time.Second)
+	}
 }
 
 get_tasks :: proc(w: ^Worker) -> (tasks: []task.Task) {
 	tasks = make([]task.Task, len(w.db))
 	i := 0
 	for _, t in w.db {
-		tasks[i] = t
+		tasks[i] = t^
 		i += 1
 	}
 	return tasks
@@ -65,15 +68,15 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 
 	task_persisted, found := w.db[task_queued.id]
 	if !found {
-		task_persisted = task_queued
-		w.db[task_queued.id] = task_queued
+		task_persisted = &task_queued
+		w.db[task_queued.id] = &task_queued
 	}
 
 	if task.valid_state_transition(task_persisted.state, task_queued.state) {
 		#partial switch task_queued.state {
-		case task.State.Scheduled:
+		case .Scheduled:
 			result = start_task(w, &task_queued)
-		case task.State.Completed:
+		case .Completed:
 			result = stop_task(w, &task_queued)
 		case:
 			result.error = task.Unreachable_Error{}
@@ -106,17 +109,15 @@ start_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	d := task.new_docker(&config)
 	result = task.docker_run(&d)
 	if result.error != nil {
-		id := uuid.to_string(t.id)
-		defer delete_string(id)
-		fmt.eprintf("Error running task %s: %v\n", id, result.error)
+		fmt.eprintf("Error running task %s: %v\n", t.id, result.error)
 		t.state = .Failed
-		w.db[t.id] = t^
+		w.db[t.id] = t
 		return result
 	}
 
 	t.container_id = result.container_id
 	t.state = .Running
-	w.db[t.id] = t^
+	w.db[t.id] = t
 
 	return result
 }
@@ -131,10 +132,8 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	}
 	t.finish_time = time.now()
 	t.state = .Completed
-	w.db[t.id] = t^
-	id := uuid.to_string(t.id)
-	defer delete_string(id)
-	fmt.printf("Stopped and removed container %v for task %s\n", t.container_id, id)
+	w.db[t.id] = t
+	fmt.printf("Stopped and removed container %v for task %s\n", t.container_id, t.id)
 
 	return result
 }

@@ -184,10 +184,7 @@ main :: proc() {
 
 thread_collect_stats :: proc(t: ^thread.Thread) {
 	w := transmute(^worker.Worker)t.data
-	for {
-		worker.collect_stats(w)
-		time.sleep(15 * time.Second)
-	}
+	worker.collect_stats(w)
 }
 
 thread_run_tasks :: proc(t: ^thread.Thread) {

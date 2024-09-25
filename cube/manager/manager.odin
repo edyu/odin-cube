@@ -1,11 +1,11 @@
 package manager
 
 import "../http"
+import "../lib"
 import "../task"
 import "../worker"
 import "core:container/queue"
 import "core:encoding/json"
-import "core:encoding/uuid"
 import "core:fmt"
 import "core:log"
 import "core:strings"
@@ -13,25 +13,25 @@ import "core:time"
 
 Manager :: struct {
 	pending:         queue.Queue(task.Event) `fmt:"-"`,
-	task_db:         map[uuid.Identifier]^task.Task `fmt:"-"`,
-	event_db:        map[uuid.Identifier]^task.Event `fmt:"-"`,
+	task_db:         map[lib.UUID]^task.Task `fmt:"-"`,
+	event_db:        map[lib.UUID]^task.Event `fmt:"-"`,
 	workers:         [dynamic]string,
-	worker_task_map: map[string][dynamic]uuid.Identifier `fmt:"-"`,
-	task_worker_map: map[uuid.Identifier]string `fmt:"-"`,
+	worker_task_map: map[string][dynamic]lib.UUID `fmt:"-"`,
+	task_worker_map: map[lib.UUID]string `fmt:"-"`,
 	last_worker:     int,
 }
 
 init :: proc(workers: []string) -> (m: Manager) {
 	http.client_init()
 	queue.init(&m.pending)
-	m.task_db = make(map[uuid.Identifier]^task.Task)
-	m.event_db = make(map[uuid.Identifier]^task.Event)
-	m.worker_task_map = make(map[string][dynamic]uuid.Identifier)
-	m.task_worker_map = make(map[uuid.Identifier]string)
+	m.task_db = make(map[lib.UUID]^task.Task)
+	m.event_db = make(map[lib.UUID]^task.Event)
+	m.worker_task_map = make(map[string][dynamic]lib.UUID)
+	m.task_worker_map = make(map[lib.UUID]string)
 	m.workers = make([dynamic]string)
 	for w in workers {
 		append(&m.workers, w)
-		m.worker_task_map[w] = make([dynamic]uuid.Identifier)
+		m.worker_task_map[w] = make([dynamic]lib.UUID)
 	}
 
 	return m
@@ -171,11 +171,11 @@ add_task :: proc(m: ^Manager, e: task.Event) {
 	queue.push_back(&m.pending, e)
 }
 
-get_tasks :: proc(m: ^Manager) -> (tasks: []^task.Task) {
-	tasks = make([]^task.Task, len(m.task_db))
+get_tasks :: proc(m: ^Manager) -> (tasks: []task.Task) {
+	tasks = make([]task.Task, len(m.task_db))
 	i := 0
 	for _, t in m.task_db {
-		tasks[i] = t
+		tasks[i] = t^
 		i += 1
 	}
 	return tasks

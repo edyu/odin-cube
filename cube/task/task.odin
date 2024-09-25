@@ -6,7 +6,7 @@ import "core:log"
 import "core:os"
 import "core:time"
 
-import "core:encoding/uuid"
+import "../lib"
 
 import "../docker/client"
 import "../docker/connection"
@@ -35,33 +35,24 @@ State :: enum u8 {
 }
 
 Task :: struct {
-	id:             uuid.Identifier `fmt:"s"`,
-	container_id:   string,
+	id:             lib.UUID,
+	container_id:   string `json:"containerId,omitempty"`,
 	name:           string,
 	state:          State,
 	image:          string,
 	cpu:            f64 `json:"cpu,omitempty"`,
 	memory:         i64 `json:"memory,omitempty"`,
 	disk:           i64 `json:"disk,omitempty"`,
-	exposed_ports:  connection.Port_Set `json:"exposedPorts,omitempty" fmt:"-"`,
-	host_ports:     connection.Port_Map `json:"hostPorts,omitempty" fmt:"-"`,
-	port_bindings:  map[string]string `json:"portBindings,omitempty" fmt:"-"`,
+	exposed_ports:  connection.Port_Set `json:"exposedPorts,omitempty"`,
+	host_ports:     connection.Port_Map `json:"hostPorts,omitempty"`,
+	port_bindings:  map[string]string `json:"portBindings,omitempty"`,
 	restart_policy: string `json:"restartPolicy,omitempty"`,
-	start_time:     time.Time `json:"startTime,omitempty" fmt:"-"`,
-	finish_time:    time.Time `json:"finishTime,omitempty" fmt:"-"`,
-	restart_count:  int `json:"restartCount,omitempty" fmt:"-"`,
+	start_time:     time.Time `json:"startTime,omitempty"`,
+	finish_time:    time.Time `json:"finishTime,omitempty"`,
+	restart_count:  int `json:"restartCount,omitempty"`,
 }
 
-new :: proc(name: string, state: State, image: string) -> (task: Task) {
-	task.id = uuid.generate_v4()
-	task.name = name
-	task.state = state
-	task.image = image
-
-	return task
-}
-
-make :: proc(id: uuid.Identifier, name: string, state: State, image: string) -> (task: Task) {
+init_with_id :: proc(id: lib.UUID, name: string, state: State, image: string) -> (task: Task) {
 	task.id = id
 	task.name = name
 	task.state = state
@@ -70,25 +61,22 @@ make :: proc(id: uuid.Identifier, name: string, state: State, image: string) -> 
 	return task
 }
 
-// new :: proc(name: string, image: string, memory: i64, disk: i64) -> (task: Task) {
-// 	task.id = uuid.generate_v4()
-// 	task.name = name
-// 	task.state = .Pending
-// 	task.image = image
-// 	task.memory = memory
-// 	task.disk = disk
+init :: proc(name: string, state: State, image: string) -> (task: Task) {
+	return init_with_id(lib.new_uuid(), name, state, image)
+}
 
-// 	return task
-// }
+deinit :: proc(task: ^Task) {
+	delete(string(task.id))
+}
 
 Event :: struct {
-	id:        uuid.Identifier `fmt:"s"`,
+	id:        lib.UUID,
 	state:     State,
-	timestamp: time.Time `fmt:"-"`,
+	timestamp: time.Time `json:"timestamp,omitempty"`,
 	task:      Task,
 }
 
-make_event :: proc(id: uuid.Identifier, state: State, task: Task) -> (event: Event) {
+init_event_with_id :: proc(id: lib.UUID, state: State, task: Task) -> (event: Event) {
 	event.id = id
 	event.state = state
 	event.timestamp = time.now()
@@ -96,13 +84,13 @@ make_event :: proc(id: uuid.Identifier, state: State, task: Task) -> (event: Eve
 	return event
 }
 
-new_event :: proc(task: Task) -> (event: Event) {
-	event.id = uuid.generate_v4()
-	event.state = .Pending
-	event.timestamp = time.now()
-	event.task = task
+init_event :: proc(task: Task) -> (event: Event) {
+	return init_event_with_id(lib.new_uuid(), .Pending, task)
+}
 
-	return event
+deinit_event :: proc(event: ^Event) {
+	delete(string(event.id))
+	deinit(&event.task)
 }
 
 Config :: struct {
