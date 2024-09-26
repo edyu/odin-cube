@@ -38,7 +38,8 @@ start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reque
 		return
 	}
 
-	add_task(worker, te.task)
+	t := task.clone_task(&te.task)
+	add_task(worker, t)
 	fmt.printf("Added task %v\n", te.task.id)
 	data, err := json.marshal(te.task)
 	if err != nil {
@@ -60,7 +61,9 @@ start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reque
 
 get_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
 	worker := transmute(^Worker)ctx
-	data, err := json.marshal(get_tasks(worker))
+	tasks := get_tasks(worker)
+	defer delete(tasks)
+	data, err := json.marshal(tasks)
 	if err != nil {
 		fmt.eprintfln("Error marshalling data: %v", err)
 		sb: strings.Builder
@@ -81,13 +84,11 @@ get_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request
 
 stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
 	worker := transmute(^Worker)ctx
-	fmt.println("URL is", r.url)
 	parts := strings.split(strings.trim_right(r.url, "/"), "/")
 	task_id: string
 	if len(parts) >= 1 {
 		task_id = parts[len(parts) - 1]
 	}
-	fmt.printf("Task id=%s\n", task_id)
 	if task_id == "" {
 		fmt.eprintln("No task id passed in request.")
 		http.set_response_status(w, .HTTP_BAD_REQUEST)
@@ -122,7 +123,7 @@ stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reques
 		return
 	}
 
-	task_copy := stopping_task^
+	task_copy := task.clone_task(stopping_task)
 	task_copy.state = .Completed
 	add_task(worker, task_copy)
 

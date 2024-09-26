@@ -9,9 +9,10 @@ import "core:strings"
 
 start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
 	manager := transmute(^Manager)ctx
-	te := task.Event{}
-	er := json.unmarshal(r.body[:], &te)
+	te := new(task.Event)
+	er := json.unmarshal(r.body[:], te)
 	if er != nil {
+		free(te)
 		fmt.eprintfln("Error unmarshalling body: %v", er)
 		sb: strings.Builder
 		fmt.sbprintf(&sb, "Error unmarshalling body: %v", er, newline = true)
@@ -45,7 +46,9 @@ start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reque
 
 get_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
 	manager := transmute(^Manager)ctx
-	data, err := json.marshal(get_tasks(manager))
+	tasks := get_tasks(manager)
+	defer delete(tasks)
+	data, err := json.marshal(tasks)
 	if err != nil {
 		fmt.eprintfln("Error marshalling data: %v", err)
 		sb: strings.Builder
@@ -66,13 +69,11 @@ get_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request
 
 stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
 	manager := transmute(^Manager)ctx
-	fmt.println("URL is", r.url)
 	parts := strings.split(strings.trim_right(r.url, "/"), "/")
 	task_id: string
 	if len(parts) >= 1 {
 		task_id = parts[len(parts) - 1]
 	}
-	fmt.printf("Task id=%s\n", task_id)
 	if task_id == "" {
 		fmt.eprintln("No task id passed in request.")
 		http.set_response_status(w, .HTTP_BAD_REQUEST)
@@ -110,7 +111,7 @@ stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reques
 
 	task_copy := stopping_task^
 	task_copy.state = .Completed
-	te := task.init_event(task_copy)
+	te := task.new_event(task_copy)
 	te.state = .Completed
 	add_task(manager, te)
 

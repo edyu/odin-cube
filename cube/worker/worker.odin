@@ -14,7 +14,7 @@ Worker_Error :: struct {
 
 Worker :: struct {
 	name:       string,
-	queue:      queue.Queue(task.Task) `fmt:"-"`,
+	queue:      queue.Queue(^task.Task) `fmt:"-"`,
 	db:         map[lib.UUID]^task.Task `fmt:"-"`,
 	task_count: uint,
 	stats:      stats.Stats,
@@ -33,7 +33,7 @@ deinit :: proc(w: ^Worker) {
 	delete_map(w.db)
 }
 
-add_task :: proc(w: ^Worker, t: task.Task) {
+add_task :: proc(w: ^Worker, t: ^task.Task) {
 	queue.push_back(&w.queue, t)
 }
 
@@ -68,16 +68,16 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 
 	task_persisted, found := w.db[task_queued.id]
 	if !found {
-		task_persisted = &task_queued
-		w.db[task_queued.id] = &task_queued
+		task_persisted = task_queued
+		w.db[task_queued.id] = task_queued
 	}
 
 	if task.valid_state_transition(task_persisted.state, task_queued.state) {
 		#partial switch task_queued.state {
 		case .Scheduled:
-			result = start_task(w, &task_queued)
+			result = start_task(w, task_queued)
 		case .Completed:
-			result = stop_task(w, &task_queued)
+			result = stop_task(w, task_queued)
 		case:
 			result.error = task.Unreachable_Error{}
 		}

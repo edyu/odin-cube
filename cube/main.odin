@@ -56,8 +56,6 @@ main :: proc() {
 	}
 
 	formatters: map[typeid]fmt.User_Formatter
-	// formatters := new(map[typeid]fmt.User_Formatter)
-	// defer free(formatters)
 	defer delete(formatters)
 	fmt.set_user_formatters(&formatters)
 	err := fmt.register_user_formatter(type_info_of(uuid.Identifier).id, User_Formatter)
@@ -124,7 +122,7 @@ main :: proc() {
 	mapi := manager.start(mhost, mport, &m)
 	defer manager.stop(&mapi)
 
-	time.sleep(1 * time.Minute)
+	time.sleep(5 * time.Minute)
 	/*
 	t := task.new("test-container-1", .Scheduled, "strm/helloworld-http")
 

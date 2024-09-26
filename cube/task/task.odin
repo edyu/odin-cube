@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:io"
 import "core:log"
 import "core:os"
+import "core:strings"
 import "core:time"
 
 import "../lib"
@@ -52,21 +53,45 @@ Task :: struct {
 	restart_count:  int `json:"restartCount,omitempty"`,
 }
 
-init_with_id :: proc(id: lib.UUID, name: string, state: State, image: string) -> (task: Task) {
+new_task_with_id :: proc(
+	id: lib.UUID,
+	name: string,
+	state: State,
+	image: string,
+) -> (
+	task: ^Task,
+) {
+	task = new(Task)
 	task.id = id
 	task.name = name
 	task.state = state
 	task.image = image
-
 	return task
 }
 
-init :: proc(name: string, state: State, image: string) -> (task: Task) {
-	return init_with_id(lib.new_uuid(), name, state, image)
+new_task :: proc(name: string, state: State, image: string) -> (task: ^Task) {
+	return new_task_with_id(lib.new_uuid(), name, state, image)
 }
 
-deinit :: proc(task: ^Task) {
+clone_task :: proc(from: ^Task) -> (task: ^Task) {
+	task = new_task_with_id(lib.clone_uuid(from.id), from.name, from.state, from.image)
+	task.container_id = from.container_id
+	task.cpu = from.cpu
+	task.memory = from.memory
+	task.disk = from.disk
+	task.start_time = from.start_time
+	task.finish_time = from.finish_time
+	task.exposed_ports = from.exposed_ports
+	task.host_ports = from.host_ports
+	task.port_bindings = from.port_bindings
+	task.restart_policy = from.restart_policy
+	task.restart_count = from.restart_count
+	return task
+}
+
+free_task :: proc(task: ^Task) {
 	delete(string(task.id))
+	free(task)
 }
 
 Event :: struct {
@@ -76,7 +101,8 @@ Event :: struct {
 	task:      Task,
 }
 
-init_event_with_id :: proc(id: lib.UUID, state: State, task: Task) -> (event: Event) {
+new_event_with_id :: proc(id: lib.UUID, state: State, task: Task) -> (event: ^Event) {
+	event = new(Event)
 	event.id = id
 	event.state = state
 	event.timestamp = time.now()
@@ -84,13 +110,13 @@ init_event_with_id :: proc(id: lib.UUID, state: State, task: Task) -> (event: Ev
 	return event
 }
 
-init_event :: proc(task: Task) -> (event: Event) {
-	return init_event_with_id(lib.new_uuid(), .Pending, task)
+new_event :: proc(task: Task) -> (event: ^Event) {
+	return new_event_with_id(lib.new_uuid(), .Pending, task)
 }
 
-deinit_event :: proc(event: ^Event) {
+free_event :: proc(event: ^Event) {
 	delete(string(event.id))
-	deinit(&event.task)
+	free(event)
 }
 
 Config :: struct {

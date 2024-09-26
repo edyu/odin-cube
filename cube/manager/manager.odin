@@ -12,9 +12,9 @@ import "core:strings"
 import "core:time"
 
 Manager :: struct {
-	pending:         queue.Queue(task.Event) `fmt:"-"`,
-	task_db:         map[lib.UUID]^task.Task `fmt:"-"`,
-	event_db:        map[lib.UUID]^task.Event `fmt:"-"`,
+	pending:         queue.Queue(^task.Event) `fmt:"-"`,
+	task_db:         map[lib.UUID]^task.Task,
+	event_db:        map[lib.UUID]^task.Event,
 	workers:         [dynamic]string,
 	worker_task_map: map[string][dynamic]lib.UUID `fmt:"-"`,
 	task_worker_map: map[lib.UUID]string `fmt:"-"`,
@@ -114,16 +114,16 @@ send_work :: proc(m: ^Manager) {
 		w := select_worker(m)
 
 		e := queue.pop_front(&m.pending)
-		t := e.task
+		t := &e.task
 
-		m.event_db[e.id] = &e
+		m.event_db[e.id] = e
 		append(&m.worker_task_map[w], e.task.id)
 		m.task_worker_map[t.id] = w
 
 		t.state = .Scheduled
-		m.task_db[t.id] = &t
+		m.task_db[t.id] = t
 
-		data, jerr := json.marshal(e)
+		data, jerr := json.marshal(e^)
 		if jerr != nil {
 			log.warnf("Unable to marshal task object: %v: %v.", t, jerr)
 		}
@@ -146,13 +146,13 @@ send_work :: proc(m: ^Manager) {
 			return
 		}
 
-		t = task.Task{}
-		merr := json.unmarshal_string(resp.body, &t)
+		rt := task.Task{}
+		merr := json.unmarshal_string(resp.body, &rt)
 		if merr != nil {
 			fmt.eprintfln("Error decoding response: %s", merr)
 			return
 		}
-		fmt.println(t)
+		fmt.println(rt)
 	} else {
 		fmt.println("No work in the queue")
 	}
@@ -167,7 +167,7 @@ process_tasks :: proc(m: ^Manager) {
 	}
 }
 
-add_task :: proc(m: ^Manager, e: task.Event) {
+add_task :: proc(m: ^Manager, e: ^task.Event) {
 	queue.push_back(&m.pending, e)
 }
 
