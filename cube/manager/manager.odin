@@ -1,5 +1,6 @@
 package manager
 
+import "../docker/connection"
 import "../http"
 import "../lib"
 import "../task"
@@ -60,7 +61,7 @@ select_worker :: proc(m: ^Manager) -> string {
 	return m.workers[new_worker]
 }
 
-update_task :: proc(m: ^Manager) {
+do_update_tasks :: proc(m: ^Manager) {
 	for worker in m.workers {
 		fmt.printfln("Checking worker %v for task updates", worker)
 		sb: strings.Builder
@@ -102,7 +103,7 @@ update_task :: proc(m: ^Manager) {
 update_tasks :: proc(m: ^Manager) {
 	for {
 		fmt.println("Checking for task updates from workers")
-		update_task(m)
+		do_update_tasks(m)
 		fmt.println("Task updates completed")
 		fmt.println("Sleeping for 15 seconds")
 		time.sleep(15 * time.Second)
@@ -179,5 +180,125 @@ get_tasks :: proc(m: ^Manager) -> (tasks: []task.Task) {
 		i += 1
 	}
 	return tasks
+}
+
+get_host_port :: proc(ports: connection.Port_Map) -> (port: connection.Port) {
+	// for k, _ in ports {
+	// 	return ports[k][0].host_port
+	// }
+	for k, v in ports {
+		return v
+	}
+
+	return
+}
+
+Manager_Error :: union {
+	Health_Check_Error,
+}
+
+Health_Check_Error :: struct {
+	message: string,
+}
+
+check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
+	fmt.printfln("Calling health check for task %s: %s", t.id, t.health_check)
+
+	w := m.task_worker_map[t.id]
+	host_port := get_host_port(t.host_ports)
+	worker := strings.split(w, ":")
+	sb: strings.Builder
+	defer strings.builder_destroy(&sb)
+	url := fmt.sbprintf(&sb, "http://%s:%s%s", worker[0], host_port, t.health_check)
+	fmt.printf("Calling health check for task %s: %s\n", t.id, url)
+	resp, err := http.get(url)
+	if err != nil {
+		fmt.eprintln("Health check error:", err)
+		mb: strings.Builder
+		// defer strings.builder_destroy(&mb)
+		msg := fmt.sbprintf(&mb, "Error connecting to health check %s", url)
+		return Health_Check_Error{msg}
+	}
+
+	if http.Status_Code(resp.status) != .HTTP_OK {
+		mb: strings.Builder
+		// defer strings.builder_destroy(&mb)
+		msg := fmt.sbprintf(&mb, "Error health check for task %s did not return 200", t.id)
+		fmt.println(msg)
+		return Health_Check_Error{msg}
+	}
+
+	fmt.printfln("Task %s health check responese: %v", t.id, resp.status)
+
+	return nil
+}
+
+do_health_checks :: proc(m: ^Manager) {
+	for _, t in m.task_db {
+		if t.state == .Running && t.restart_count < 3 {
+			err := check_task_health(m, t)
+			if err != nil {
+				if t.restart_count < 3 {
+					restart_task(m, t)
+				}
+			}
+		} else if t.state == .Failed && t.restart_count < 3 {
+			restart_task(m, t)
+		}
+	}
+}
+
+restart_task :: proc(m: ^Manager, t: ^task.Task) {
+	w := m.task_worker_map[t.id]
+	t.state = .Scheduled
+	t.restart_count += 1
+	m.task_db[t.id] = t
+
+	te := task.new_event(t^)
+	te.state = .Running
+	data, err := json.marshal(te)
+	if err != nil {
+		fmt.printfln("Unable to marshal task object: %v", t)
+		return
+	}
+
+	sb: strings.Builder
+	defer strings.builder_destroy(&sb)
+	url := fmt.sbprintf(&sb, "http://%s/tasks", w)
+	resp, rerr := http.post(url, "application/json", string(data))
+	if rerr != nil {
+		fmt.eprintfln("Error connecting to %s: %v", w, err)
+		queue.push_back(&m.pending, te)
+		return
+	}
+
+	if http.Status_Code(resp.status) != .HTTP_CREATED {
+		e: worker.Error_Response
+		derr := json.unmarshal_string(resp.body, &e)
+		if derr != nil {
+			fmt.eprintfln("Error decoding response: %v", derr)
+			return
+		}
+		fmt.printfln("Response error (%d): %s", e.status_code, e.message)
+		return
+	}
+
+	new_task: task.Task
+	derr := json.unmarshal_string(resp.body, &new_task)
+	if derr != nil {
+		fmt.eprintfln("Error decoding response: %v", err)
+		return
+	}
+	fmt.printfln("%#v", t)
+}
+
+check_health :: proc(m: ^Manager) {
+	for {
+		fmt.println("Performing task health check")
+		do_health_checks(m)
+		fmt.println("Task health checks completed")
+		fmt.println("Sleeping for 60 seconds")
+		time.sleep(60 * time.Second)
+	}
 }
 

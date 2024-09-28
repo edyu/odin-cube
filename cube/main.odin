@@ -75,15 +75,20 @@ main :: proc() {
 	w := worker.init("worker-1")
 	defer worker.deinit(&w)
 
-	task_thread := thread.create(thread_run_tasks)
+	task_thread := thread.create(worker_run_tasks)
 	defer thread.destroy(task_thread)
 	task_thread.data = &w
 	thread.start(task_thread)
 
-	stat_thread := thread.create(thread_collect_stats)
+	stat_thread := thread.create(worker_collect_stats)
 	defer thread.destroy(stat_thread)
 	stat_thread.data = &w
 	thread.start(stat_thread)
+
+	w_update_thread := thread.create(worker_update_tasks)
+	defer thread.destroy(w_update_thread)
+	w_update_thread.data = &w
+	thread.start(w_update_thread)
 
 	fmt.printfln("Starting Cube worker %s:%d", whost, wport)
 	wapi := worker.start(whost, wport, &w)
@@ -108,15 +113,20 @@ main :: proc() {
 	m := manager.init(workers)
 	defer manager.deinit(&m)
 
-	process_thread := thread.create(thread_process_tasks)
+	process_thread := thread.create(manager_process_tasks)
 	defer thread.destroy(process_thread)
 	process_thread.data = &m
 	thread.start(process_thread)
 
-	update_thread := thread.create(thread_update_tasks)
-	defer thread.destroy(update_thread)
-	update_thread.data = &m
-	thread.start(update_thread)
+	// m_update_thread := thread.create(manager_update_tasks)
+	// defer thread.destroy(m_update_thread)
+	// m_update_thread.data = &m
+	// thread.start(m_update_thread)
+
+	// health_thread := thread.create(manager_health_checks)
+	// defer thread.destroy(health_thread)
+	// health_thread.data = &m
+	// thread.start(health_thread)
 
 	fmt.printfln("Starting Cube manager %s:%d", mhost, mport)
 	mapi := manager.start(mhost, mport, &m)
@@ -180,26 +190,37 @@ main :: proc() {
 	// _ = stop_container(&docker_task, create_result.container_id)
 }
 
-thread_collect_stats :: proc(t: ^thread.Thread) {
+worker_collect_stats :: proc(t: ^thread.Thread) {
 	w := transmute(^worker.Worker)t.data
 	worker.collect_stats(w)
 }
 
-thread_run_tasks :: proc(t: ^thread.Thread) {
+worker_run_tasks :: proc(t: ^thread.Thread) {
 	w := transmute(^worker.Worker)t.data
 	worker.run_tasks(w)
 }
 
-thread_process_tasks :: proc(t: ^thread.Thread) {
+worker_update_tasks :: proc(t: ^thread.Thread) {
+	w := transmute(^worker.Worker)t.data
+	worker.update_tasks(w)
+}
+
+manager_process_tasks :: proc(t: ^thread.Thread) {
 	m := transmute(^manager.Manager)t.data
 	manager.process_tasks(m)
 }
 
-thread_update_tasks :: proc(t: ^thread.Thread) {
+manager_update_tasks :: proc(t: ^thread.Thread) {
 	m := transmute(^manager.Manager)t.data
 	manager.update_tasks(m)
 }
 
+manager_health_checks :: proc(t: ^thread.Thread) {
+	m := transmute(^manager.Manager)t.data
+	manager.check_health(m)
+}
+
+/*
 create_container :: proc() -> (docker: task.Docker, result: task.Docker_Result) {
 	c := task.new_test_config(
 		"test-container-1",
@@ -232,4 +253,5 @@ stop_container :: proc(d: ^task.Docker, id: string) -> (result: task.Docker_Resu
 	fmt.printf("Container %s has been stopped and removed\n", result.container_id)
 	return result
 }
+*/
 

@@ -4,6 +4,7 @@ import "core:container/queue"
 import "core:fmt"
 import "core:time"
 
+import "../docker/container"
 import "../lib"
 import "../stats"
 import "../task"
@@ -136,5 +137,63 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	fmt.printf("Stopped and removed container %v for task %s\n", t.container_id, t.id)
 
 	return result
+}
+
+inspect_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
+	config := task.new_config(t)
+	d := task.new_docker(&config)
+
+	fmt.println("Calling docker inspect for", t.container_id)
+	result = task.docker_inspect(&d, t.container_id)
+	if result.error != nil {
+		fmt.printf("Error inspecting container %v: %v\n", t.container_id, result.error)
+	}
+	t.finish_time = time.now()
+	t.state = .Completed
+	w.db[t.id] = t
+	fmt.printf("Inspected container %v for task %s\n", t.container_id, t.id)
+
+	return result
+}
+
+do_update_tasks :: proc(w: ^Worker) {
+	for id, t in w.db {
+		fmt.println("worker.update: checking state:", t.state)
+		if t.state == .Running {
+			result := inspect_task(w, t)
+			if result.error != nil {
+				fmt.eprintfln("ERROR: %v", result.error)
+			}
+
+			if result.response == nil {
+				fmt.printfln("No container for running task %s", id)
+				w.db[id].state = .Failed
+			}
+
+			#partial switch r in result.response {
+			case container.Inspect_Response:
+				if r.state.status == "exited" {
+					fmt.printfln(
+						"Container for task %s in non-running state %s",
+						id,
+						r.state.status,
+					)
+					w.db[id].state = .Failed
+				}
+
+				w.db[id].host_ports = r.network_settings.ports
+			}
+		}
+	}
+}
+
+update_tasks :: proc(w: ^Worker) {
+	for {
+		fmt.println("Checking status of tasks")
+		do_update_tasks(w)
+		fmt.println("Task updates completed")
+		fmt.println("Sleeping for 15 seconds")
+		time.sleep(15 * time.Second)
+	}
 }
 

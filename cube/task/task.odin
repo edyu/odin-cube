@@ -41,15 +41,16 @@ Task :: struct {
 	name:           string,
 	state:          State,
 	image:          string,
-	cpu:            f64 `json:"cpu,omitempty"`,
-	memory:         i64 `json:"memory,omitempty"`,
-	disk:           i64 `json:"disk,omitempty"`,
+	cpu:            f64 `json:",omitempty"`,
+	memory:         i64 `json:",omitempty"`,
+	disk:           i64 `json:",omitempty"`,
 	exposed_ports:  connection.Port_Set `json:"exposedPorts,omitempty"`,
 	host_ports:     connection.Port_Map `json:"hostPorts,omitempty"`,
-	port_bindings:  map[string]string `json:"portBindings,omitempty"`,
+	port_bindings:  connection.Port_Map `json:"portBindings,omitempty"`,
 	restart_policy: string `json:"restartPolicy,omitempty"`,
 	start_time:     time.Time `json:"startTime,omitempty"`,
 	finish_time:    time.Time `json:"finishTime,omitempty"`,
+	health_check:   string `json:"healthCheck,omitempty"`,
 	restart_count:  int `json:"restartCount,omitempty"`,
 }
 
@@ -119,20 +120,20 @@ free_event :: proc(event: ^Event) {
 	free(event)
 }
 
-Config :: struct {
+Docker_Config :: struct {
 	name:           string,
-	attach_stdin:   bool `fmt:"-"`,
-	attach_stdout:  bool `fmt:"-"`,
-	attach_stderr:  bool `fmt:"-"`,
-	cmd:            []string `fmt:"-"`,
+	attach_stdin:   bool,
+	attach_stdout:  bool,
+	attach_stderr:  bool,
+	cmd:            []string,
 	image:          string,
-	memory:         i64 `fmt:"-"`,
-	disk:           i64 `fmt:"-"`,
+	memory:         i64,
+	disk:           i64,
 	env:            []string,
-	restart_policy: string `fmt:"-"`,
+	restart_policy: string,
 }
 
-new_config :: proc(t: ^Task) -> (config: Config) {
+new_config :: proc(t: ^Task) -> (config: Docker_Config) {
 	config.name = t.name
 	config.image = t.image
 	config.restart_policy = t.restart_policy
@@ -140,27 +141,19 @@ new_config :: proc(t: ^Task) -> (config: Config) {
 	return config
 }
 
-new_test_config :: proc(name: string, image: string, env: []string) -> (config: Config) {
-	config.name = name
-	config.image = image
-	config.env = env
-
-	return config
-}
-
 Docker :: struct {
 	client: ^client.Client,
-	config: Config,
+	config: Docker_Config,
 }
 
 Docker_Result :: struct {
 	error:        Task_Error,
 	action:       string,
 	container_id: string,
-	result:       string,
+	response:     container.Container_Response,
 }
 
-new_docker :: proc(config: ^Config) -> (docker: Docker) {
+new_docker :: proc(config: ^Docker_Config) -> (docker: Docker) {
 	dc, _ := client.init()
 	docker.client = &dc
 	docker.config = config^
@@ -172,41 +165,55 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 	reader, err := client.image_pull(d.config.image, image.Pull_Options{})
 	if err != nil {
 		fmt.printf("Error pulling image %s: %v\n", d.config.image, err)
-		return Docker_Result{err, "", "", ""}
+		return Docker_Result{err, "", "", nil}
 	}
 	stdout := os.stream_from_handle(os.stdout)
 	io.copy(stdout, reader)
 
-	options := container.Create_Options{}
+	options: container.Create_Options
 
 	options.env = d.config.env
 	options.image = d.config.image
 	rp := container.Restart_Policy{d.config.restart_policy, 0}
-	hc := container.Host_Config{d.config.memory, true, rp}
+
+	// r := container.Resources{d.config.memory}
+
+	// cc: container.Config
+	// cc.image = d.config.image
+	// cc.env = d.config.env
+
+	hc: container.Host_Config
+	hc.restart_policy = rp
+	// hc.resources = r
+	hc.publish_all_ports = true
+
+	// options: container.Create_Options
+	// options.config = cc
 	options.host_config = hc
 
+	fmt.println("creating image name=", d.config.name)
 	resp, cerr := client.container_create(d.config.name, options)
 	if cerr != nil {
 		fmt.printf("Error creating container using image %s: %v\n", d.config.image, cerr)
-		return Docker_Result{cerr, "create", "", "failure"}
+		return Docker_Result{cerr, "create", "", nil}
 	}
 
 	serr := client.container_start(resp.id, container.Start_Options{})
 	if serr != nil {
 		fmt.printf("Error starting container %s: %v\n", resp.id, serr)
-		return Docker_Result{serr, "start", resp.id, "failure"}
+		return Docker_Result{serr, "start", resp.id, resp}
 	}
 
 	out, lerr := client.container_logs(resp.id, container.Logs_Options{true, true})
 	if lerr != nil {
 		fmt.printf("Error getting logs for container %s: %v\n", resp.id, lerr)
-		return Docker_Result{lerr, "logs", resp.id, "failure"}
+		return Docker_Result{lerr, "logs", resp.id, resp}
 	}
 
 	stderr := os.stream_from_handle(os.stderr)
 	client.std_copy(stdout, stderr, out)
 
-	return Docker_Result{nil, "start", resp.id, "success"}
+	return Docker_Result{nil, "start", resp.id, resp}
 }
 
 docker_stop :: proc(d: ^Docker, id: string) -> Docker_Result {
@@ -215,15 +222,27 @@ docker_stop :: proc(d: ^Docker, id: string) -> Docker_Result {
 	err := client.container_stop(id, container.Stop_Options{})
 	if err != nil {
 		fmt.printf("Error stopping container %s: %v\n", id, err)
-		return Docker_Result{err, "stop", id, "failure"}
+		return Docker_Result{err, "stop", id, nil}
 	}
 
 	err = client.container_remove(id, container.Remove_Options{true, false, false})
 	if err != nil {
 		fmt.printf("Error removing container %s: %v\n", id, err)
-		return Docker_Result{err, "remove", id, "failure"}
+		return Docker_Result{err, "remove", id, nil}
 	}
 
-	return Docker_Result{nil, "stop", id, "success"}
+	return Docker_Result{nil, "stop", id, nil}
+}
+
+docker_inspect :: proc(d: ^Docker, id: string) -> Docker_Result {
+	fmt.printf("Attempting to inspect container %s\n", id)
+	resp, err := client.container_inspect(id)
+	if err != nil {
+		fmt.printf("Error inspecting container %s: %v\n", id, err)
+		return Docker_Result{err, "inspect", id, nil}
+	}
+	fmt.println("INSPECT resp:", resp)
+
+	return Docker_Result{nil, "inspect", id, resp}
 }
 

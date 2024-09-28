@@ -167,7 +167,7 @@ std_copy :: proc(dstout, dsterr: io.Writer, src: io.Reader) -> (writtent: i64, e
 	return
 }
 
-container_stop :: proc(id: string, options: container.Stop_Options) -> (err: Client_Error) {
+container_stop :: proc(id: string, options: container.Stop_Options) -> Client_Error {
 	fmt.printf("docker container stop %s\n", id)
 	session := http.session_init() or_return
 	defer http.session_done(session)
@@ -202,5 +202,40 @@ container_remove :: proc(id: string, options: container.Remove_Options) -> Clien
 	http.session_delete(session, strings.to_string(url)) or_return
 
 	return nil
+}
+
+container_inspect :: proc(id: string) -> (resp: container.Inspect_Response, err: Client_Error) {
+	fmt.printf("docker container inspect\n")
+	session := http.session_init() or_return
+	defer http.session_done(session)
+
+	http.session_set_unix_socket(session, DOCKER_SOCKET) or_return
+
+	url: strings.Builder
+	defer strings.builder_destroy(&url)
+	strings.write_string(&url, API_PREFIX)
+	strings.write_string(&url, "/containers/")
+	strings.write_string(&url, id)
+	strings.write_string(&url, "/json")
+
+	reply := http.session_get(session, strings.to_string(url)) or_return
+
+	if reply.status >= 400 {
+		m: Error_Message
+		err := json.unmarshal_string(reply.body, &m)
+		if err != nil {
+			fmt.eprintf("error marshalling: %v\n", err)
+		}
+		return resp, Response_Error{reply.status, m.message}
+	} else {
+		err := json.unmarshal_string(reply.body, &resp)
+		if err != nil {
+			fmt.eprintf("error marshalling: %s -> %v\n", reply, err)
+		}
+		fmt.println("state:", resp.state)
+		fmt.println("ports:", resp.network_settings.ports)
+	}
+
+	return resp, nil
 }
 
