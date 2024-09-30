@@ -118,15 +118,15 @@ main :: proc() {
 	process_thread.data = &m
 	thread.start(process_thread)
 
-	// m_update_thread := thread.create(manager_update_tasks)
-	// defer thread.destroy(m_update_thread)
-	// m_update_thread.data = &m
-	// thread.start(m_update_thread)
+	m_update_thread := thread.create(manager_update_tasks)
+	defer thread.destroy(m_update_thread)
+	m_update_thread.data = &m
+	thread.start(m_update_thread)
 
-	// health_thread := thread.create(manager_health_checks)
-	// defer thread.destroy(health_thread)
-	// health_thread.data = &m
-	// thread.start(health_thread)
+	health_thread := thread.create(manager_health_checks)
+	defer thread.destroy(health_thread)
+	health_thread.data = &m
+	thread.start(health_thread)
 
 	fmt.printfln("Starting Cube manager %s:%d", mhost, mport)
 	mapi := manager.start(mhost, mport, &m)

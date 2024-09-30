@@ -86,13 +86,16 @@ do_update_tasks :: proc(m: ^Manager) {
 							return
 						}
 
-						if m.task_db[t.id].state != t.state {
-							m.task_db[t.id].state = t.state
+						ut := m.task_db[t.id]
+						if ut.state != t.state {
+							ut.state = t.state
 						}
 
-						m.task_db[t.id].start_time = t.start_time
-						m.task_db[t.id].finish_time = t.finish_time
-						m.task_db[t.id].container_id = t.container_id
+						ut.start_time = t.start_time
+						ut.finish_time = t.finish_time
+						ut.container_id = t.container_id
+						ut.host_ports = t.host_ports
+						m.task_db[t.id] = ut
 					}
 				}
 			}
@@ -153,6 +156,7 @@ send_work :: proc(m: ^Manager) {
 			fmt.eprintfln("Error decoding response: %s", merr)
 			return
 		}
+		// w.task_count += 1
 		fmt.println(rt)
 	} else {
 		fmt.println("No work in the queue")
@@ -238,7 +242,8 @@ check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
 }
 
 do_health_checks :: proc(m: ^Manager) {
-	for _, t in m.task_db {
+	for _, &t in m.task_db {
+		fmt.println("checking health for task:", t)
 		if t.state == .Running && t.restart_count < 3 {
 			err := check_task_health(m, t)
 			if err != nil {

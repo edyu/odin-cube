@@ -85,6 +85,7 @@ clone_task :: proc(from: ^Task) -> (task: ^Task) {
 	task.host_ports = from.host_ports
 	task.port_bindings = from.port_bindings
 	task.restart_policy = from.restart_policy
+	task.health_check = from.health_check
 	task.restart_count = from.restart_count
 	return task
 }

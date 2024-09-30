@@ -142,24 +142,14 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 inspect_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	config := task.new_config(t)
 	d := task.new_docker(&config)
-
-	fmt.println("Calling docker inspect for", t.container_id)
-	result = task.docker_inspect(&d, t.container_id)
-	if result.error != nil {
-		fmt.printf("Error inspecting container %v: %v\n", t.container_id, result.error)
-	}
-	t.finish_time = lib.new_time()
-	t.state = .Completed
-	w.db[t.id] = t
-	fmt.printf("Inspected container %v for task %s\n", t.container_id, t.id)
-
-	return result
+	return task.docker_inspect(&d, t.container_id)
 }
 
 do_update_tasks :: proc(w: ^Worker) {
-	for id, t in w.db {
+	for id, &t in w.db {
 		fmt.println("worker.update: checking state:", t.state)
 		if t.state == .Running {
+			fmt.println("INSPECTING task:", t)
 			result := inspect_task(w, t)
 			if result.error != nil {
 				fmt.eprintfln("ERROR: %v", result.error)
@@ -167,7 +157,7 @@ do_update_tasks :: proc(w: ^Worker) {
 
 			if result.response == nil {
 				fmt.printfln("No container for running task %s", id)
-				w.db[id].state = .Failed
+				t.state = .Failed
 			}
 
 			#partial switch r in result.response {
@@ -178,10 +168,13 @@ do_update_tasks :: proc(w: ^Worker) {
 						id,
 						r.state.status,
 					)
-					w.db[id].state = .Failed
+					t.state = .Failed
 				}
 
-				w.db[id].host_ports = r.network_settings.ports
+				t.exposed_ports = r.config.exposed_ports
+				t.host_ports = r.network_settings.ports
+				t.port_bindings = r.host_config.port_bindings
+				fmt.println("UPDATED task:", t)
 			}
 		}
 	}
