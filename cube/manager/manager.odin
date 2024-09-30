@@ -182,15 +182,15 @@ get_tasks :: proc(m: ^Manager) -> (tasks: []task.Task) {
 	return tasks
 }
 
-get_host_port :: proc(ports: connection.Port_Map) -> (port: connection.Port) {
-	// for k, _ in ports {
-	// 	return ports[k][0].host_port
-	// }
-	for k, v in ports {
-		return v
+get_host_port :: proc(ports: connection.Port_Mapping) -> string {
+	for k, _ in ports {
+		return ports[k][0].host_port
 	}
+	// for k, v in ports {
+	// 	return v
+	// }
 
-	return
+	return ""
 }
 
 Manager_Error :: union {
@@ -206,6 +206,10 @@ check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
 
 	w := m.task_worker_map[t.id]
 	host_port := get_host_port(t.host_ports)
+	if host_port == "" {
+		fmt.printfln("Have not collected task %s host port yet. Skipping", t.id)
+		return nil
+	}
 	worker := strings.split(w, ":")
 	sb: strings.Builder
 	defer strings.builder_destroy(&sb)

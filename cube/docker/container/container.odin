@@ -2,8 +2,8 @@ package container
 
 import "core:fmt"
 import "core:io"
-import "core:time"
 
+import "../../lib"
 import "../connection"
 
 Container :: struct {}
@@ -87,8 +87,8 @@ State :: struct {
 	pid:         int `json:"Pid"`,
 	exit_code:   int `json:"ExitCode"`,
 	error:       string `json:"Error"`,
-	started_at:  time.Time `json:"StartedAt"`,
-	finished_at: time.Time `json:FinishedAt`,
+	started_at:  lib.Timestamp `json:"StartedAt"`,
+	finished_at: lib.Timestamp `json:FinishedAt`,
 }
 
 Inspect_Response :: struct {
@@ -101,7 +101,7 @@ Inspect_Response :: struct {
 }
 
 Network_Settings :: struct {
-	ports:       connection.Port_Map `json:"Ports"`,
+	ports:       connection.Port_Mapping `json:"Ports"`,
 	gateway:     connection.Ip_Address `json:"Gateway"`,
 	ip_address:  connection.Ip_Address `json:"IPAddress"`,
 	mac_address: connection.Mac_Address `json:"MacAddress"`,

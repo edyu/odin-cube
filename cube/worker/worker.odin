@@ -105,7 +105,7 @@ run_tasks :: proc(w: ^Worker) {
 }
 
 start_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
-	t.start_time = time.now()
+	t.start_time = lib.new_time()
 	config := task.new_config(t)
 	d := task.new_docker(&config)
 	result = task.docker_run(&d)
@@ -131,7 +131,7 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	if result.error != nil {
 		fmt.printf("Error stopping container %v: %v\n", t.container_id, result.error)
 	}
-	t.finish_time = time.now()
+	t.finish_time = lib.new_time()
 	t.state = .Completed
 	w.db[t.id] = t
 	fmt.printf("Stopped and removed container %v for task %s\n", t.container_id, t.id)
@@ -148,7 +148,7 @@ inspect_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) 
 	if result.error != nil {
 		fmt.printf("Error inspecting container %v: %v\n", t.container_id, result.error)
 	}
-	t.finish_time = time.now()
+	t.finish_time = lib.new_time()
 	t.state = .Completed
 	w.db[t.id] = t
 	fmt.printf("Inspected container %v for task %s\n", t.container_id, t.id)

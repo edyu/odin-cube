@@ -7,21 +7,6 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:strings"
 
-/*
-Task :: struct {
-	state: task.State,
-	id:    string,
-	name:  string,
-	image: string,
-}
-
-Task_Event :: struct {
-	id:    string,
-	state: task.State,
-	task:  Task,
-}
-*/
-
 start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
 	worker := transmute(^Worker)ctx
 	te := task.Event{}

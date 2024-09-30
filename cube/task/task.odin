@@ -5,7 +5,6 @@ import "core:io"
 import "core:log"
 import "core:os"
 import "core:strings"
-import "core:time"
 
 import "../lib"
 
@@ -45,11 +44,11 @@ Task :: struct {
 	memory:         i64 `json:",omitempty"`,
 	disk:           i64 `json:",omitempty"`,
 	exposed_ports:  connection.Port_Set `json:"exposedPorts,omitempty"`,
-	host_ports:     connection.Port_Map `json:"hostPorts,omitempty"`,
+	host_ports:     connection.Port_Mapping `json:"hostPorts,omitempty"`,
 	port_bindings:  connection.Port_Map `json:"portBindings,omitempty"`,
 	restart_policy: string `json:"restartPolicy,omitempty"`,
-	start_time:     time.Time `json:"startTime,omitempty"`,
-	finish_time:    time.Time `json:"finishTime,omitempty"`,
+	start_time:     lib.Timestamp `json:"startTime,omitempty"`,
+	finish_time:    lib.Timestamp `json:"finishTime,omitempty"`,
 	health_check:   string `json:"healthCheck,omitempty"`,
 	restart_count:  int `json:"restartCount,omitempty"`,
 }
@@ -98,7 +97,7 @@ free_task :: proc(task: ^Task) {
 Event :: struct {
 	id:        lib.UUID,
 	state:     State,
-	timestamp: time.Time `json:"timestamp,omitempty"`,
+	timestamp: lib.Timestamp `json:",omitempty"`,
 	task:      Task,
 }
 
@@ -106,7 +105,7 @@ new_event_with_id :: proc(id: lib.UUID, state: State, task: Task) -> (event: ^Ev
 	event = new(Event)
 	event.id = id
 	event.state = state
-	event.timestamp = time.now()
+	event.timestamp = lib.new_time()
 	event.task = task
 	return event
 }
@@ -217,7 +216,6 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 }
 
 docker_stop :: proc(d: ^Docker, id: string) -> Docker_Result {
-	// ctx := context.Background()
 	fmt.printf("Attempting to stop container %s\n", id)
 	err := client.container_stop(id, container.Stop_Options{})
 	if err != nil {
