@@ -182,7 +182,7 @@ get_tasks :: proc(m: ^Manager) -> (tasks: []task.Task) {
 	return tasks
 }
 
-get_host_port :: proc(ports: connection.Port_Mapping) -> string {
+get_host_port :: proc(ports: connection.Port_Map) -> string {
 	for k, _ in ports {
 		return ports[k][0].host_port
 	}

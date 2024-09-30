@@ -106,6 +106,8 @@ container_create :: proc(
 	defer strings.builder_destroy(&fields)
 	json.marshal_to_builder(&fields, options, &json.Marshal_Options{}) or_return
 
+	fmt.println("DOCKER CREATE: ", strings.to_string(fields))
+
 	reply := http.session_post(
 		session,
 		strings.to_string(url),

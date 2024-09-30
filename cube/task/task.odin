@@ -44,7 +44,7 @@ Task :: struct {
 	memory:         i64 `json:",omitempty"`,
 	disk:           i64 `json:",omitempty"`,
 	exposed_ports:  connection.Port_Set `json:"exposedPorts,omitempty"`,
-	host_ports:     connection.Port_Mapping `json:"hostPorts,omitempty"`,
+	host_ports:     connection.Port_Map `json:"hostPorts,omitempty"`,
 	port_bindings:  connection.Port_Map `json:"portBindings,omitempty"`,
 	restart_policy: string `json:"restartPolicy,omitempty"`,
 	start_time:     lib.Timestamp `json:"startTime,omitempty"`,
@@ -121,20 +121,27 @@ free_event :: proc(event: ^Event) {
 
 Docker_Config :: struct {
 	name:           string,
+	hostname:       string,
+	domainname:     string,
+	user:           string,
 	attach_stdin:   bool,
 	attach_stdout:  bool,
 	attach_stderr:  bool,
+	exposed_ports:  connection.Port_Set,
+	env:            []string,
 	cmd:            []string,
 	image:          string,
 	memory:         i64,
 	disk:           i64,
-	env:            []string,
+	port_bindings:  connection.Port_Map,
 	restart_policy: string,
 }
 
 new_config :: proc(t: ^Task) -> (config: Docker_Config) {
 	config.name = t.name
 	config.image = t.image
+	config.exposed_ports = t.exposed_ports
+	config.port_bindings = t.port_bindings
 	config.restart_policy = t.restart_policy
 
 	return config
@@ -171,7 +178,12 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 
 	options: container.Create_Options
 
+	options.attach_stdin = d.config.attach_stdin
+	options.attach_stdout = d.config.attach_stdout
+	options.attach_stderr = d.config.attach_stderr
+	options.exposed_ports = d.config.exposed_ports
 	options.env = d.config.env
+	options.cmd = d.config.cmd
 	options.image = d.config.image
 	rp := container.Restart_Policy{d.config.restart_policy, 0}
 
@@ -185,6 +197,7 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 	hc.restart_policy = rp
 	// hc.resources = r
 	hc.publish_all_ports = true
+	hc.port_bindings = d.config.port_bindings
 
 	// options: container.Create_Options
 	// options.config = cc

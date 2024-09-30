@@ -8,13 +8,11 @@ Mac_Address :: string
 Port :: string
 
 Port_Binding :: struct {
-	host_ip:   string,
-	host_port: string,
+	host_ip:   string `json:"HostIp,omitempty"`,
+	host_port: string `json:"HostPort"`,
 }
 
-Port_Mapping :: map[Port][]Port_Binding
-
-Port_Map :: map[Port]string
+Port_Map :: map[Port][]Port_Binding
 
 Port_Set :: map[Port]struct {}
 

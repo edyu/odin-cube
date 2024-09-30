@@ -45,11 +45,17 @@ Config :: struct {
 
 Create_Options :: struct {
 	// using config:     Config,
-	env:              []string `json:"Env"`,
-	image:            string `json:"Image"`,
-	exposed_ports:    connection.Port_Set `json:"ExposedPorts"`,
-	host_config:      Host_Config `json:"HostConfig"`,
-	network_settings: Network_Settings `json:"NetworkSettings"`,
+	hostname:      string `json:"Hostname"`,
+	domainname:    string `json:"Domainname"`,
+	user:          string `json:"User"`,
+	attach_stdin:  bool `json:"AttachStdin"`,
+	attach_stdout: bool `json:"AttachStdout"`,
+	attach_stderr: bool `json:"AttachStderr"`,
+	exposed_ports: connection.Port_Set `json:"ExposedPorts"`,
+	env:           []string `json:"Env"`,
+	cmd:           []string `json:"Cmd"`,
+	image:         string `json:"Image"`,
+	host_config:   Host_Config `json:"HostConfig"`,
 }
 
 Container_Response :: union {
@@ -101,7 +107,7 @@ Inspect_Response :: struct {
 }
 
 Network_Settings :: struct {
-	ports:       connection.Port_Mapping `json:"Ports"`,
+	ports:       connection.Port_Map `json:"Ports"`,
 	gateway:     connection.Ip_Address `json:"Gateway"`,
 	ip_address:  connection.Ip_Address `json:"IPAddress"`,
 	mac_address: connection.Mac_Address `json:"MacAddress"`,
