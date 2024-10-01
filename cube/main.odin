@@ -1,5 +1,6 @@
 package cube
 
+import "base:runtime"
 import "core:c"
 import "core:container/queue"
 import "core:crypto"
@@ -123,10 +124,10 @@ main :: proc() {
 	m_update_thread.data = &m
 	thread.start(m_update_thread)
 
-	health_thread := thread.create(manager_health_checks)
+	health_thread := thread.create_and_start_with_data(&m, manager_health_thread, context)
 	defer thread.destroy(health_thread)
-	health_thread.data = &m
-	thread.start(health_thread)
+	// health_thread.data = &m
+	// thread.start(health_thread)
 
 	fmt.printfln("Starting Cube manager %s:%d", mhost, mport)
 	mapi := manager.start(mhost, mport, &m)
@@ -213,6 +214,13 @@ manager_process_tasks :: proc(t: ^thread.Thread) {
 manager_update_tasks :: proc(t: ^thread.Thread) {
 	m := transmute(^manager.Manager)t.data
 	manager.update_tasks(m)
+}
+
+manager_health_thread :: proc(data: rawptr) {
+	m := transmute(^manager.Manager)data
+	defer runtime.default_temp_allocator_destroy(auto_cast context.temp_allocator.data)
+	// context.random_generator = crypto.random_generator()
+	manager.check_health(m)
 }
 
 manager_health_checks :: proc(t: ^thread.Thread) {

@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:log"
 import "core:time"
 
+import "../docker/client"
 import "../docker/container"
 import "../lib"
 import "../stats"
@@ -89,6 +90,25 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 				}
 			}
 			result = start_task(w, t)
+			if result.error != nil && t.container_id == "" {
+				#partial switch r in result.error {
+				case client.Client_Error:
+					#partial switch e in r {
+					case client.Response_Error:
+						if e.code == 409 {
+							fmt.eprintln("Got existing conflict container; stopping")
+							err := client.container_stop(t.name, container.Stop_Options{})
+							if err != nil {
+								fmt.eprintln("Error stopping existing container:", err)
+							}
+							err = client.container_remove(t.name, container.Remove_Options{})
+							if err != nil {
+								fmt.eprintln("Error removing existing container:", err)
+							}
+						}
+					}
+				}
+			}
 		case .Completed:
 			result = stop_task(w, t)
 		case:

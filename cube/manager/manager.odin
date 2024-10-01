@@ -110,7 +110,7 @@ update_tasks :: proc(m: ^Manager) {
 		fmt.println("[manager]: Checking for task updates from workers")
 		do_update_tasks(m)
 		fmt.println("[manager]: Task updates completed")
-		fmt.println("[manager]: Sleeping for 15 seconds")
+		fmt.println("[manager]: Update: Sleeping for 15 seconds")
 		time.sleep(15 * time.Second)
 	}
 }
@@ -169,7 +169,7 @@ process_tasks :: proc(m: ^Manager) {
 	for {
 		fmt.println("[manager]: Processing any tasks in the queue")
 		send_work(m)
-		fmt.println("[manager]: Sleeping for 10 seconds")
+		fmt.println("[manager]: Send: Sleeping for 10 seconds")
 		time.sleep(10 * time.Second)
 	}
 }
@@ -308,7 +308,7 @@ check_health :: proc(m: ^Manager) {
 		fmt.println("[manager]: Performing task health check")
 		do_health_checks(m)
 		fmt.println("[manager]: Task health checks completed")
-		fmt.println("[manager]: Sleeping for 60 seconds")
+		fmt.println("[manager]: Health: Sleeping for 60 seconds")
 		time.sleep(60 * time.Second)
 	}
 }
