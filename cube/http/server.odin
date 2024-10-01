@@ -126,17 +126,17 @@ request_completed :: proc "c" (
 	toe: libmhd.Request_Termination_Code,
 ) {
 	context = runtime.default_context()
-	fmt.println("IN REQUEST COMPLETED:", toe)
 
 	request := transmute(^Request)con_cls^
 	if request == nil {
 		fmt.println("COMPLETED: request is NULL")
 		return
 	}
+	/*
 	if request.method == libmhd.METHOD_POST {
-		fmt.println("COMPLETED: method is POST")
 		// libmhd.MHD_destroy_post_processor(con_info.post_processor)
 	}
+	*/
 
 	builtin.delete(request.body)
 	builtin.delete(request.header)

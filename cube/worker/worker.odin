@@ -2,6 +2,7 @@ package worker
 
 import "core:container/queue"
 import "core:fmt"
+import "core:log"
 import "core:time"
 
 import "../docker/container"
@@ -40,7 +41,7 @@ add_task :: proc(w: ^Worker, t: ^task.Task) {
 
 collect_stats :: proc(w: ^Worker) {
 	for {
-		fmt.println("Collecting stats")
+		fmt.println("[worker]: Collecting stats")
 		w.stats = stats.get_stats()
 		w.stats.task_count = w.task_count
 		// w.task_count = w.stats.task_count
@@ -61,17 +62,19 @@ get_tasks :: proc(w: ^Worker) -> (tasks: []task.Task) {
 run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 	t, ok := queue.pop_front_safe(&w.queue)
 	if !ok {
-		fmt.println("No tasks in the queue")
+		fmt.println("[worker]: No tasks in the queue")
 		return result
 	}
 
 	task_queued := t
+	fmt.printfln("[worker]: Found task in queue: %v", task_queued)
 
 	task_persisted, found := w.db[task_queued.id]
 	if !found {
 		task_persisted = task_queued
 		w.db[task_queued.id] = task_queued
 	}
+	fmt.println("[worker]: PERSISTED(%s).state=%v", task_persisted.id, task_persisted.state)
 
 	if task.valid_state_transition(task_persisted.state, task_queued.state) {
 		#partial switch task_queued.state {
@@ -97,9 +100,9 @@ run_tasks :: proc(w: ^Worker) {
 				fmt.eprintfln("Error running task: %v", result.error)
 			}
 		} else {
-			fmt.println("No tasks to process currently.")
+			fmt.println("[worker]: No tasks to process currently")
 		}
-		fmt.println("Sleeping for 10 seconds.")
+		fmt.println("[worker]: Run: Sleeping for 10 seconds")
 		time.sleep(10 * time.Second)
 	}
 }
@@ -131,10 +134,14 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	if result.error != nil {
 		fmt.printf("Error stopping container %v: %v\n", t.container_id, result.error)
 	}
+	result = task.docker_remove(&d, t.container_id)
+	if result.error != nil {
+		fmt.printf("Error removing container %v: %v\n", t.container_id, result.error)
+	}
 	t.finish_time = lib.new_time()
 	t.state = .Completed
 	w.db[t.id] = t
-	fmt.printf("Stopped and removed container %v for task %s\n", t.container_id, t.id)
+	fmt.printf("[worker]: Stopped and removed container %v for task %s\n", t.container_id, t.id)
 
 	return result
 }
@@ -147,9 +154,7 @@ inspect_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) 
 
 do_update_tasks :: proc(w: ^Worker) {
 	for id, &t in w.db {
-		fmt.println("worker.update: checking state:", t.state)
 		if t.state == .Running {
-			fmt.println("INSPECTING task:", t)
 			result := inspect_task(w, t)
 			if result.error != nil {
 				fmt.eprintfln("ERROR: %v", result.error)
@@ -174,7 +179,6 @@ do_update_tasks :: proc(w: ^Worker) {
 				t.exposed_ports = r.config.exposed_ports
 				t.host_ports = r.network_settings.ports
 				t.port_bindings = r.host_config.port_bindings
-				fmt.println("UPDATED task:", t)
 			}
 		}
 	}
@@ -182,10 +186,10 @@ do_update_tasks :: proc(w: ^Worker) {
 
 update_tasks :: proc(w: ^Worker) {
 	for {
-		fmt.println("Checking status of tasks")
+		fmt.println("[worker]: Checking status of tasks")
 		do_update_tasks(w)
-		fmt.println("Task updates completed")
-		fmt.println("Sleeping for 15 seconds")
+		fmt.println("[worker]: Task updates completed")
+		fmt.println("[worker]: Update: Sleeping for 15 seconds")
 		time.sleep(15 * time.Second)
 	}
 }

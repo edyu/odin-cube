@@ -16,7 +16,6 @@ Error_Response :: struct {
 }
 
 setup_routes :: proc(mux: ^router.Router, ctx: rawptr) {
-	fmt.println("SETUP ROUTES called")
 	sub := router.route(mux, "/tasks", ctx)
 	router.post(sub, "/", start_task_handler)
 	router.get(sub, "/", get_task_handler)

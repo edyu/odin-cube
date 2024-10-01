@@ -182,20 +182,16 @@ route_request :: proc(
 	r: ^http.Request,
 	url: string,
 ) -> bool {
-	fmt.println("IN ROUTE:", url)
 	m := router.method_map[r.method]
 
 	u := sanitize_pattern(url)
-	fmt.println("ROUTE: BODY IS", string(r.body[:]))
 	for p, &s in router.sub {
 		off := starts_with(u, p)
 		if off != -1 {
 			if off == len(u) {
-				fmt.println("SUB ROUTE:", p, "-> /")
 				return route_request(s, w, r, "/")
 			} else {
 				u = u[off:]
-				fmt.println("SUB ROUTE:", p, "->", u)
 				return route_request(s, w, r, u)
 			}
 		}
@@ -203,7 +199,7 @@ route_request :: proc(
 
 	for n in router.tree {
 		if n.method == m && matches(u, n.pattern) {
-			fmt.println("FOUND:", m, u, r.url)
+			fmt.println("[router]: url match", m, u, r.url)
 			n.handler(router.ctx, w, r)
 			return true
 		}
@@ -227,7 +223,6 @@ listen_and_serve :: proc "c" (
 	context = runtime.default_context()
 
 	if con_cls^ == nil {
-		fmt.println("FIRST TIME LISTEN")
 		// con_info := new(http.Connection_Info)
 		// if con_info == nil {
 		// 	return .NO
@@ -245,7 +240,6 @@ listen_and_serve :: proc "c" (
 			http.header_iterator,
 			rawptr(&request.header),
 		)
-		fmt.printf("headers[%d]: %v\n", num_headers, request.header)
 
 		// if string(method) == libmhd.METHOD_POST {
 		// 	fmt.println("creating post processor")
@@ -269,19 +263,9 @@ listen_and_serve :: proc "c" (
 		return .YES
 	}
 
-	fmt.println("NOT FIRST TIME")
-
 	request := transmute(^http.Request)con_cls^
 
-	if request == nil {
-		fmt.println("listen: request is NULL")
-	}
-	if request.connection == nil {
-		fmt.println("listen: connection is NULL")
-	}
-
 	if string(method) == libmhd.METHOD_POST {
-		fmt.println("LISTEN POST:", upload_data_size^)
 		if upload_data_size^ != 0 {
 			append(&request.body, ..upload_data[:upload_data_size^])
 			// libmhd.MHD_post_process(con_info.post_processor, upload_data, upload_data_size^)
@@ -292,10 +276,8 @@ listen_and_serve :: proc "c" (
 		}
 	}
 
-	fmt.println("routing request...")
 	mux := transmute(^Router)cls
 	ok := serve_http(mux, request)
-	fmt.println("after routing request:", ok)
 
 	if ok {
 		return .YES
@@ -314,8 +296,6 @@ serve_http :: proc(router: ^Router, r: ^http.Request) -> (ok: bool) {
 		// .PERSISTENT,
 		.MUST_COPY,
 	)
-	fmt.println("WRITER:", w)
-	fmt.println("RESP:", response)
 
 	if response == nil {
 		fmt.eprintln("Error: cannot create response")
@@ -326,10 +306,8 @@ serve_http :: proc(router: ^Router, r: ^http.Request) -> (ok: bool) {
 		hs := strings.clone_to_cstring(h, context.temp_allocator)
 		vs := strings.clone_to_cstring(v, context.temp_allocator)
 		ret := libmhd.MHD_add_response_header(response, hs, vs)
-		fmt.println("add_header:", ret, hs, vs)
 	}
 	ret := libmhd.MHD_queue_response(r.connection, libmhd.Status_Code(w.status_code), response)
-	fmt.println("QUEUE RESP ret:", ret)
 	libmhd.MHD_destroy_response(response)
 
 	return ret == .YES

@@ -1,16 +1,17 @@
 package manager
 
-import "../docker/connection"
-import "../http"
-import "../lib"
-import "../task"
-import "../worker"
 import "core:container/queue"
 import "core:encoding/json"
 import "core:fmt"
 import "core:log"
 import "core:strings"
 import "core:time"
+
+import "../docker/connection"
+import "../http"
+import "../lib"
+import "../task"
+import "../worker"
 
 Manager :: struct {
 	pending:         queue.Queue(^task.Event) `fmt:"-"`,
@@ -63,7 +64,7 @@ select_worker :: proc(m: ^Manager) -> string {
 
 do_update_tasks :: proc(m: ^Manager) {
 	for worker in m.workers {
-		fmt.printfln("Checking worker %v for task updates", worker)
+		fmt.printfln("[manager]: Checking worker %v for task updates", worker)
 		sb: strings.Builder
 		url := fmt.sbprintf(&sb, "http://%s/tasks", worker)
 		resp, err := http.get(url)
@@ -79,10 +80,10 @@ do_update_tasks :: proc(m: ^Manager) {
 					fmt.printfln("Error marshalling tasks: %v", err)
 				} else {
 					for t in tasks {
-						fmt.printfln("Attempting to update task %v", t.id)
+						fmt.printfln("[manager]: Attempting to update task %v", t.id)
 
 						if t.id not_in m.task_db {
-							fmt.printfln("Task with id %s not found", t.id)
+							fmt.printfln("[manager]: Task with id %s not found", t.id)
 							return
 						}
 
@@ -105,10 +106,10 @@ do_update_tasks :: proc(m: ^Manager) {
 
 update_tasks :: proc(m: ^Manager) {
 	for {
-		fmt.println("Checking for task updates from workers")
+		fmt.println("[manager]: Checking for task updates from workers")
 		do_update_tasks(m)
-		fmt.println("Task updates completed")
-		fmt.println("Sleeping for 15 seconds")
+		fmt.println("[manager]: Task updates completed")
+		fmt.println("[manager]: Sleeping for 15 seconds")
 		time.sleep(15 * time.Second)
 	}
 }
@@ -159,15 +160,15 @@ send_work :: proc(m: ^Manager) {
 		// w.task_count += 1
 		fmt.println(rt)
 	} else {
-		fmt.println("No work in the queue")
+		fmt.println("[manager]: No work in the queue")
 	}
 }
 
 process_tasks :: proc(m: ^Manager) {
 	for {
-		fmt.println("Processing any tasks in the queue")
+		fmt.println("[manager]: Processing any tasks in the queue")
 		send_work(m)
-		fmt.println("Sleeping for 10 seconds")
+		fmt.println("[manager]: Sleeping for 10 seconds")
 		time.sleep(10 * time.Second)
 	}
 }
@@ -206,26 +207,26 @@ Health_Check_Error :: struct {
 }
 
 check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
-	fmt.printfln("Calling health check for task %s: %s", t.id, t.health_check)
+	fmt.printfln("[manager]: Calling health check for task %s: %s", t.id, t.health_check)
 
 	w := m.task_worker_map[t.id]
 	host_port := get_host_port(t.host_ports)
 	if host_port == "" {
-		fmt.printfln("Have not collected task %s host port yet. Skipping", t.id)
+		fmt.printfln("[manager]: Have not collected task %s host port yet. Skipping", t.id)
 		return nil
 	}
 	worker := strings.split(w, ":")
 	sb: strings.Builder
 	defer strings.builder_destroy(&sb)
 	url := fmt.sbprintf(&sb, "http://%s:%s%s", worker[0], host_port, t.health_check)
-	fmt.printf("Calling health check for task %s: %s\n", t.id, url)
+	fmt.printf("[manager]: Calling health check for task %s: %s\n", t.id, url)
 	resp, err := http.get(url)
 	if err != nil {
 		fmt.eprintln("Health check error:", err)
 		mb: strings.Builder
 		// defer strings.builder_destroy(&mb)
 		msg := fmt.sbprintf(&mb, "Error connecting to health check %s", url)
-		return Health_Check_Error{msg}
+		return Health_Check_Error{"Error connecting to health check"}
 	}
 
 	if http.Status_Code(resp.status) != .HTTP_OK {
@@ -233,7 +234,7 @@ check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
 		// defer strings.builder_destroy(&mb)
 		msg := fmt.sbprintf(&mb, "Error health check for task %s did not return 200", t.id)
 		fmt.println(msg)
-		return Health_Check_Error{msg}
+		return Health_Check_Error{"Non-200 error returned from health check"}
 	}
 
 	fmt.printfln("Task %s health check responese: %v", t.id, resp.status)
@@ -243,7 +244,6 @@ check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
 
 do_health_checks :: proc(m: ^Manager) {
 	for _, &t in m.task_db {
-		fmt.println("checking health for task:", t)
 		if t.state == .Running && t.restart_count < 3 {
 			err := check_task_health(m, t)
 			if err != nil {
@@ -263,11 +263,12 @@ restart_task :: proc(m: ^Manager, t: ^task.Task) {
 	t.restart_count += 1
 	m.task_db[t.id] = t
 
-	te := task.new_event(t^)
-	te.state = .Running
-	data, err := json.marshal(te)
+	e := task.new_event(t^)
+	// te.task.id = lib.new_uuid()
+	e.state = .Running
+	data, err := json.marshal(e^)
 	if err != nil {
-		fmt.printfln("Unable to marshal task object: %v", t)
+		fmt.printfln("Unable to marshal task object: %v", err)
 		return
 	}
 
@@ -277,7 +278,7 @@ restart_task :: proc(m: ^Manager, t: ^task.Task) {
 	resp, rerr := http.post(url, "application/json", string(data))
 	if rerr != nil {
 		fmt.eprintfln("Error connecting to %s: %v", w, err)
-		queue.push_back(&m.pending, te)
+		queue.push_back(&m.pending, e)
 		return
 	}
 
@@ -298,15 +299,15 @@ restart_task :: proc(m: ^Manager, t: ^task.Task) {
 		fmt.eprintfln("Error decoding response: %v", err)
 		return
 	}
-	fmt.printfln("%#v", t)
+	fmt.printfln("[manager]: Response from worker: %#v", t)
 }
 
 check_health :: proc(m: ^Manager) {
 	for {
-		fmt.println("Performing task health check")
+		fmt.println("[manager]: Performing task health check")
 		do_health_checks(m)
-		fmt.println("Task health checks completed")
-		fmt.println("Sleeping for 60 seconds")
+		fmt.println("[manager]: Task health checks completed")
+		fmt.println("[manager]: Sleeping for 60 seconds")
 		time.sleep(60 * time.Second)
 	}
 }

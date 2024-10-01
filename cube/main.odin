@@ -217,6 +217,7 @@ manager_update_tasks :: proc(t: ^thread.Thread) {
 
 manager_health_checks :: proc(t: ^thread.Thread) {
 	m := transmute(^manager.Manager)t.data
+	context.random_generator = crypto.random_generator()
 	manager.check_health(m)
 }
 

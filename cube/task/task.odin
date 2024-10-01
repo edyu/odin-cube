@@ -204,7 +204,6 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 	// options.config = cc
 	options.host_config = hc
 
-	fmt.println("creating image name=", d.config.name)
 	resp, cerr := client.container_create(d.config.name, options)
 	if cerr != nil {
 		fmt.printf("Error creating container using image %s: %v\n", d.config.image, cerr)
@@ -237,13 +236,18 @@ docker_stop :: proc(d: ^Docker, id: string) -> Docker_Result {
 		return Docker_Result{err, "stop", id, nil}
 	}
 
-	err = client.container_remove(id, container.Remove_Options{true, false, false})
+	return Docker_Result{nil, "stop", id, nil}
+}
+
+docker_remove :: proc(d: ^Docker, id: string) -> Docker_Result {
+	fmt.printf("Attempting to remove container %s\n", id)
+	err := client.container_remove(id, container.Remove_Options{true, false, false})
 	if err != nil {
 		fmt.printf("Error removing container %s: %v\n", id, err)
 		return Docker_Result{err, "remove", id, nil}
 	}
 
-	return Docker_Result{nil, "stop", id, nil}
+	return Docker_Result{nil, "remove", id, nil}
 }
 
 docker_inspect :: proc(d: ^Docker, id: string) -> Docker_Result {

@@ -90,7 +90,6 @@ container_create :: proc(
 	resp: container.Create_Response,
 	err: Client_Error,
 ) {
-	fmt.printf("docker container create\n")
 	session := http.session_init() or_return
 	defer http.session_done(session)
 
@@ -105,8 +104,6 @@ container_create :: proc(
 	fields: strings.Builder
 	defer strings.builder_destroy(&fields)
 	json.marshal_to_builder(&fields, options, &json.Marshal_Options{}) or_return
-
-	fmt.println("DOCKER CREATE: ", strings.to_string(fields))
 
 	reply := http.session_post(
 		session,
@@ -127,15 +124,12 @@ container_create :: proc(
 		if err != nil {
 			fmt.eprintf("error marshalling: %s -> %v\n", reply, err)
 		}
-		fmt.println("id:", resp.id)
-		fmt.println("warnings:", resp.warnings)
 	}
 
 	return resp, nil
 }
 
 container_start :: proc(id: string, options: container.Start_Options) -> Client_Error {
-	fmt.printf("docker container start %s\n", id)
 	session := http.session_init() or_return
 	defer http.session_done(session)
 
@@ -170,7 +164,6 @@ std_copy :: proc(dstout, dsterr: io.Writer, src: io.Reader) -> (writtent: i64, e
 }
 
 container_stop :: proc(id: string, options: container.Stop_Options) -> Client_Error {
-	fmt.printf("docker container stop %s\n", id)
 	session := http.session_init() or_return
 	defer http.session_done(session)
 
@@ -189,7 +182,6 @@ container_stop :: proc(id: string, options: container.Stop_Options) -> Client_Er
 }
 
 container_remove :: proc(id: string, options: container.Remove_Options) -> Client_Error {
-	fmt.printf("docker container remove %s\n", id)
 	session := http.session_init() or_return
 	defer http.session_done(session)
 
@@ -207,7 +199,6 @@ container_remove :: proc(id: string, options: container.Remove_Options) -> Clien
 }
 
 container_inspect :: proc(id: string) -> (resp: container.Inspect_Response, err: Client_Error) {
-	fmt.printf("docker container inspect\n")
 	session := http.session_init() or_return
 	defer http.session_done(session)
 
@@ -234,8 +225,6 @@ container_inspect :: proc(id: string) -> (resp: container.Inspect_Response, err:
 		if err != nil {
 			fmt.eprintf("error marshalling: %s -> %v\n", reply, err)
 		}
-		fmt.println("state:", resp.state)
-		fmt.println("ports:", resp.network_settings.ports)
 	}
 
 	return resp, nil
