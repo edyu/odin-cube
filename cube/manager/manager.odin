@@ -96,7 +96,8 @@ do_update_tasks :: proc(m: ^Manager) {
 						ut.finish_time = t.finish_time
 						ut.container_id = t.container_id
 						ut.host_ports = t.host_ports
-						m.task_db[t.id] = ut
+
+						m.task_db[ut.id] = ut
 					}
 				}
 			}

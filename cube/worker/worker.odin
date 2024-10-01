@@ -66,27 +66,38 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 		return result
 	}
 
-	task_queued := t
-	fmt.printfln("[worker]: Found task in queue: %v", task_queued)
+	fmt.printfln("[worker]: Found task in queue: %v", t)
 
-	task_persisted, found := w.db[task_queued.id]
+	w.db[t.id] = t
+
+	pt, found := w.db[t.id]
 	if !found {
-		task_persisted = task_queued
-		w.db[task_queued.id] = task_queued
+		pt = t
+		w.db[t.id] = t
 	}
-	fmt.println("[worker]: PERSISTED(%s).state=%v", task_persisted.id, task_persisted.state)
+	if pt.state == .Completed {
+		return stop_task(w, pt)
+	}
 
-	if task.valid_state_transition(task_persisted.state, task_queued.state) {
-		#partial switch task_queued.state {
+	if task.valid_state_transition(pt.state, t.state) {
+		#partial switch t.state {
 		case .Scheduled:
-			result = start_task(w, task_queued)
+			if t.container_id != "" {
+				result = stop_task(w, t)
+				if result.error != nil {
+					fmt.printfln("Error: %v", result.error)
+				}
+			}
+			result = start_task(w, t)
 		case .Completed:
-			result = stop_task(w, task_queued)
+			result = stop_task(w, t)
 		case:
+			fmt.eprintfln("This is a mistake. persisted task: %v, queued task: %v", pt, t)
 			result.error = task.Unreachable_Error{}
 		}
 	} else {
-		result.error = task.Invalid_Transition_Error{task_persisted.state, task_queued.state}
+		fmt.eprintfln("Invalid transition from %v to %v", pt.state, t.state)
+		result.error = task.Invalid_Transition_Error{pt.state, t.state}
 	}
 
 	return result
