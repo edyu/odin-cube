@@ -139,7 +139,7 @@ main :: proc() {
 		fmt.tprintf("%s:%d", whost, wport + 2),
 	}
 
-	m := manager.init(workers, scheduler.ROUND_ROBIN)
+	m := manager.init(workers, manager.ROUND_ROBIN)
 	defer manager.deinit(&m)
 
 	m_process_thread := thread.create_and_start_with_data(&m, manager_process_tasks, context)

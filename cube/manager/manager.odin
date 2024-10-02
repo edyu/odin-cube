@@ -15,6 +15,9 @@ import "../scheduler"
 import "../task"
 import "../worker"
 
+ROUND_ROBIN :: "round_robin"
+EPVM :: "epvm"
+
 Manager_Error :: union {
 	Health_Check_Error,
 	Scheduler_Error,
@@ -37,7 +40,7 @@ Manager :: struct {
 	task_worker_map: map[lib.UUID]string `fmt:"-"`,
 	last_worker:     int,
 	worker_nodes:    []^node.Node,
-	scheduler:       scheduler.Scheduler,
+	scheduler:       ^scheduler.Scheduler,
 }
 
 init :: proc(workers: []string, scheduler_type: string) -> (m: Manager) {
@@ -58,10 +61,11 @@ init :: proc(workers: []string, scheduler_type: string) -> (m: Manager) {
 	}
 
 	switch scheduler_type {
-	case scheduler.ROUND_ROBIN:
-		m.scheduler = scheduler.init_round_robin()
+	case "round_robin":
+		m.scheduler = scheduler.new_scheduler(scheduler.Round_Robin)
 	case:
-		m.scheduler = scheduler.init_round_robin()
+		msg := fmt.tprintf("unknown scheduler: %s", scheduler_type)
+		panic(msg)
 	}
 
 	return m
@@ -80,18 +84,19 @@ deinit :: proc(m: ^Manager) {
 		free(n)
 	}
 	delete(m.worker_nodes)
+	free(m.scheduler)
 }
 
 select_worker :: proc(m: ^Manager, t: task.Task) -> (node: ^node.Node, err: Manager_Error) {
-	candidates := scheduler.select_candidate_nodes(&m.scheduler, t, m.worker_nodes)
+	candidates := scheduler.select_nodes(m.scheduler, t, m.worker_nodes)
 	if len(candidates) == 0 {
 		msg := fmt.aprintf("No available candidates match resource request for task %s", t.id)
 		return nil, Scheduler_Error{msg}
 	}
 
-	scores := scheduler.score(&m.scheduler, t, candidates)
+	scores := scheduler.score(m.scheduler, t, candidates)
 	log.debugf("Scheduler scores: %v", scores)
-	node = scheduler.pick(&m.scheduler, scores, candidates)
+	node = scheduler.pick(m.scheduler, scores, candidates)
 	log.debugf("Scheduler picked: %v", node)
 
 	return node, nil

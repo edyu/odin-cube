@@ -3,65 +3,49 @@ package scheduler
 import "../node"
 import "../task"
 
-ROUND_ROBIN: string : "roundrobin"
-
 Scheduler :: struct {
-	name: string,
+	variant: union {
+		^Round_Robin,
+		^Epvm,
+	},
 }
 
-Round_Robin :: struct {
-	using _:     Scheduler,
-	last_worker: int,
-}
-
-init_round_robin :: proc() -> (s: Round_Robin) {
-	s.name = ROUND_ROBIN
+new_scheduler :: proc($T: typeid) -> ^T {
+	s := new(T)
+	s.variant = s
 	return s
 }
 
-select_candidate_nodes :: proc(r: ^Scheduler, t: task.Task, nodes: []^node.Node) -> []^node.Node {
-	return nodes
+select_nodes :: proc(s: ^Scheduler, t: task.Task, nodes: []^node.Node) -> []^node.Node {
+	switch v in s.variant {
+	case ^Round_Robin:
+		return rr_select_nodes(v, t, nodes)
+	case ^Epvm:
+		return epvm_select_nodes(v, t, nodes)
+	case:
+		return nil
+	}
 }
 
 score :: proc(s: ^Scheduler, t: task.Task, nodes: []^node.Node) -> map[string]f64 {
-	r := transmute(^Round_Robin)s
-	node_scores := make(map[string]f64)
-	new_worker: int
-	if r.last_worker + 1 < len(nodes) {
-		new_worker = r.last_worker + 1
-		r.last_worker += 1
-	} else {
-		new_worker = 0
-		r.last_worker = 0
+	switch v in s.variant {
+	case ^Round_Robin:
+		return rr_score(v, t, nodes)
+	case ^Epvm:
+		return epvm_score(v, t, nodes)
+	case:
+		return nil
 	}
-
-	for n, i in nodes {
-		if i == new_worker {
-			node_scores[n.name] = 0.1
-		} else {
-			node_scores[n.name] = 1.0
-		}
-	}
-
-	return node_scores
 }
 
-pick :: proc(s: ^Scheduler, scores: map[string]f64, candidates: []^node.Node) -> ^node.Node {
-	best: ^node.Node
-	lowest: f64
-	for n, i in candidates {
-		if i == 0 {
-			best = n
-			lowest = scores[n.name]
-			continue
-		}
-
-		if scores[n.name] < lowest {
-			best = n
-			lowest = scores[n.name]
-		}
+pick :: proc(s: ^Scheduler, scores: map[string]f64, nodes: []^node.Node) -> ^node.Node {
+	switch v in s.variant {
+	case ^Round_Robin:
+		return rr_pick(v, scores, nodes)
+	case ^Epvm:
+		return epvm_pick(v, scores, nodes)
+	case:
+		return nil
 	}
-
-	return best
 }
 
