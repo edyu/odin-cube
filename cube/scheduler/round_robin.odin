@@ -9,7 +9,11 @@ Round_Robin :: struct {
 }
 
 rr_select_nodes :: proc(r: ^Round_Robin, t: task.Task, nodes: []^node.Node) -> []^node.Node {
-	return nodes
+	candidates := make([]^node.Node, len(nodes))
+	for n, i in nodes {
+		candidates[i] = n
+	}
+	return candidates
 }
 
 rr_score :: proc(r: ^Round_Robin, t: task.Task, nodes: []^node.Node) -> map[string]f64 {

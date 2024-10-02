@@ -97,7 +97,6 @@ cpu_usage :: proc(s: ^Stats) -> f64 {
 	if total == 0 {
 		return 0.0
 	}
-
 	return f64(nonidle) / f64(total)
 }
 

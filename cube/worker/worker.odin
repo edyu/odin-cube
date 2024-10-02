@@ -27,7 +27,6 @@ init :: proc(name: string) -> (w: Worker) {
 	w.name = name
 	queue.init(&w.queue)
 	w.db = make(map[lib.UUID]^task.Task)
-	w.task_count = 0
 	return w
 }
 

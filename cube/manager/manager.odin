@@ -15,8 +15,10 @@ import "../scheduler"
 import "../task"
 import "../worker"
 
-ROUND_ROBIN :: "round_robin"
-EPVM :: "epvm"
+Scheduler_Type :: enum {
+	ROUND_ROBIN  = 1,
+	ENHANCED_PVM = 2,
+}
 
 Manager_Error :: union {
 	Health_Check_Error,
@@ -32,18 +34,17 @@ Scheduler_Error :: struct {
 }
 
 Manager :: struct {
-	pending:         queue.Queue(^task.Event) `fmt:"-"`,
+	pending:         queue.Queue(^task.Event),
 	task_db:         map[lib.UUID]^task.Task,
 	event_db:        map[lib.UUID]^task.Event,
 	workers:         [dynamic]string,
-	worker_task_map: map[string][dynamic]lib.UUID `fmt:"-"`,
-	task_worker_map: map[lib.UUID]string `fmt:"-"`,
-	last_worker:     int,
+	worker_task_map: map[string][dynamic]lib.UUID,
+	task_worker_map: map[lib.UUID]string,
 	worker_nodes:    []^node.Node,
 	scheduler:       ^scheduler.Scheduler,
 }
 
-init :: proc(workers: []string, scheduler_type: string) -> (m: Manager) {
+init :: proc(workers: []string, scheduler_type: Scheduler_Type) -> (m: Manager) {
 	http.client_init()
 	queue.init(&m.pending)
 	m.task_db = make(map[lib.UUID]^task.Task)
@@ -56,13 +57,15 @@ init :: proc(workers: []string, scheduler_type: string) -> (m: Manager) {
 		append(&m.workers, w)
 		m.worker_task_map[w] = make([dynamic]lib.UUID)
 		n_api := fmt.aprintf("http://%s", w)
-		n := node.new(w, n_api, "worker")
+		n := node.new_node(w, n_api, "worker")
 		m.worker_nodes[i] = n
 	}
 
 	switch scheduler_type {
-	case "round_robin":
+	case .ROUND_ROBIN:
 		m.scheduler = scheduler.new_scheduler(scheduler.Round_Robin)
+	case .ENHANCED_PVM:
+		m.scheduler = scheduler.new_scheduler(scheduler.Epvm)
 	case:
 		msg := fmt.tprintf("unknown scheduler: %s", scheduler_type)
 		panic(msg)
@@ -89,12 +92,14 @@ deinit :: proc(m: ^Manager) {
 
 select_worker :: proc(m: ^Manager, t: task.Task) -> (node: ^node.Node, err: Manager_Error) {
 	candidates := scheduler.select_nodes(m.scheduler, t, m.worker_nodes)
+	defer delete(candidates)
 	if len(candidates) == 0 {
 		msg := fmt.aprintf("No available candidates match resource request for task %s", t.id)
 		return nil, Scheduler_Error{msg}
 	}
 
 	scores := scheduler.score(m.scheduler, t, candidates)
+	defer delete(scores)
 	log.debugf("Scheduler scores: %v", scores)
 	node = scheduler.pick(m.scheduler, scores, candidates)
 	log.debugf("Scheduler picked: %v", node)
@@ -111,7 +116,7 @@ do_update_tasks :: proc(m: ^Manager) {
 			log.errorf("Error connecting to %v: %v", worker, err)
 		} else {
 			if http.Status_Code(resp.status) != .HTTP_OK {
-				log.errorf("Error sending request: %v", err)
+				log.errorf("Error sending request: %d", resp.status)
 			} else {
 				tasks: []task.Task
 				merr := json.unmarshal_string(resp.body, &tasks)
@@ -343,12 +348,12 @@ check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
 	}
 
 	if http.Status_Code(resp.status) != .HTTP_OK {
-		msg := fmt.aprintf("Error health check for task %s did not return 200", t.id)
+		msg := fmt.aprintf("Health check for task %s returned %d", t.id, resp.status)
 		log.warnf(msg)
 		return Health_Check_Error{msg}
 	}
 
-	log.debugf("Task %s health check responese: %v", t.id, resp.status)
+	log.debugf("Task %s health check responese: %d", t.id, resp.status)
 
 	return nil
 }
