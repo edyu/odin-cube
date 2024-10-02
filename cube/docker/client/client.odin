@@ -65,13 +65,9 @@ image_pull :: proc(
 
 	http.session_set_unix_socket(session, DOCKER_SOCKET) or_return
 
-	url: strings.Builder
-	defer strings.builder_destroy(&url)
-	strings.write_string(&url, API_PREFIX)
-	strings.write_string(&url, "/images/create?fromImage=")
-	strings.write_string(&url, name)
+	url := fmt.tprintf("%s/images/create?fromImage=%s", API_PREFIX, name)
 
-	resp := http.session_post(session, strings.to_string(url), JSON_HEADER, EMPTY_JSON) or_return
+	resp := http.session_post(session, url, JSON_HEADER, EMPTY_JSON) or_return
 
 	reader: strings.Reader
 	strings.reader_init(&reader, resp.body)
@@ -95,22 +91,13 @@ container_create :: proc(
 
 	http.session_set_unix_socket(session, DOCKER_SOCKET) or_return
 
-	url: strings.Builder
-	defer strings.builder_destroy(&url)
-	strings.write_string(&url, API_PREFIX)
-	strings.write_string(&url, "/containers/create?name=")
-	strings.write_string(&url, name)
+	url := fmt.tprintf("%s/containers/create?name=%s", API_PREFIX, name)
 
 	fields: strings.Builder
 	defer strings.builder_destroy(&fields)
 	json.marshal_to_builder(&fields, options, &json.Marshal_Options{}) or_return
 
-	reply := http.session_post(
-		session,
-		strings.to_string(url),
-		JSON_HEADER,
-		strings.to_string(fields),
-	) or_return
+	reply := http.session_post(session, url, JSON_HEADER, strings.to_string(fields)) or_return
 
 	if reply.status >= 400 {
 		m: Error_Message
@@ -135,14 +122,9 @@ container_start :: proc(id: string, options: container.Start_Options) -> Client_
 
 	http.session_set_unix_socket(session, DOCKER_SOCKET)
 
-	url: strings.Builder
-	defer strings.builder_destroy(&url)
-	strings.write_string(&url, API_PREFIX)
-	strings.write_string(&url, "/containers/")
-	strings.write_string(&url, id)
-	strings.write_string(&url, "/start")
+	url := fmt.tprintf("%s/containers/%s/start", API_PREFIX, id)
 
-	http.session_post_only(session, strings.to_string(url), JSON_HEADER, EMPTY_JSON) or_return
+	http.session_post_only(session, url, JSON_HEADER, EMPTY_JSON) or_return
 
 	return nil
 }
@@ -169,14 +151,9 @@ container_stop :: proc(id: string, options: container.Stop_Options) -> Client_Er
 
 	http.session_set_unix_socket(session, DOCKER_SOCKET) or_return
 
-	url: strings.Builder
-	defer strings.builder_destroy(&url)
-	strings.write_string(&url, API_PREFIX)
-	strings.write_string(&url, "/containers/")
-	strings.write_string(&url, id)
-	strings.write_string(&url, "/stop")
+	url := fmt.tprintf("%s/containers/%s/stop", API_PREFIX, id)
 
-	http.session_post_only(session, strings.to_string(url), JSON_HEADER, EMPTY_JSON)
+	http.session_post_only(session, url, JSON_HEADER, EMPTY_JSON) or_return
 
 	return nil
 }
@@ -187,13 +164,9 @@ container_remove :: proc(id: string, options: container.Remove_Options) -> Clien
 
 	http.session_set_unix_socket(session, DOCKER_SOCKET) or_return
 
-	url: strings.Builder
-	defer strings.builder_destroy(&url)
-	strings.write_string(&url, API_PREFIX)
-	strings.write_string(&url, "/containers/")
-	strings.write_string(&url, id)
+	url := fmt.tprintf("%s/containers/%s", API_PREFIX, id)
 
-	http.session_delete(session, strings.to_string(url)) or_return
+	http.session_delete(session, url) or_return
 
 	return nil
 }
@@ -204,14 +177,9 @@ container_inspect :: proc(id: string) -> (resp: container.Inspect_Response, err:
 
 	http.session_set_unix_socket(session, DOCKER_SOCKET) or_return
 
-	url: strings.Builder
-	defer strings.builder_destroy(&url)
-	strings.write_string(&url, API_PREFIX)
-	strings.write_string(&url, "/containers/")
-	strings.write_string(&url, id)
-	strings.write_string(&url, "/json")
+	url := fmt.tprintf("%s/containers/%s/json", API_PREFIX, id)
 
-	reply := http.session_get(session, strings.to_string(url)) or_return
+	reply := http.session_get(session, url) or_return
 
 	if reply.status >= 400 {
 		m: Error_Message

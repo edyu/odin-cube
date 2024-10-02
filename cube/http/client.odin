@@ -83,11 +83,9 @@ session_set_content_type :: proc(
 	session: ^libcurl.Session,
 	content_type: string,
 ) -> Http_Client_Error {
-	header: strings.Builder
-	defer strings.builder_destroy(&header)
-	fmt.sbprintf(&header, "Content-Type: %s", content_type)
+	header := fmt.tprintf("Content-Type: %s", content_type)
 	hs: ^libcurl.Slist
-	hs = libcurl.curl_slist_append(hs, strings.to_cstring(&header))
+	hs = libcurl.curl_slist_append(hs, strings.clone_to_cstring(header, context.temp_allocator))
 	// defer libcurl.curl_slist_free_all(hs)
 	code := libcurl.curl_easy_setopt(session, .OPT_HTTPHEADER, hs)
 	if code != .E_OK {
@@ -103,12 +101,13 @@ session_post_only :: proc(
 	content_type: string,
 	content: string,
 ) -> (
+	resp: Response,
 	err: Http_Client_Error,
 ) {
 	code := libcurl.curl_easy_setopt(session, .OPT_URL, url)
 	if code != .E_OK {
 		fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
-		return Curl_Error{code}
+		return resp, Curl_Error{code}
 	}
 
 	session_set_content_type(session, content_type) or_return
@@ -117,16 +116,22 @@ session_post_only :: proc(
 	code = libcurl.curl_easy_setopt(session, .OPT_POSTFIELDS, request)
 	if code != .E_OK {
 		fmt.eprintf("curl_easy_setopt(POSTFIELDS) failed: %s\n", libcurl.curl_easy_strerror(code))
-		return Curl_Error{code}
+		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_perform(session)
 	if code != .E_OK {
 		fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
-		return Curl_Error{code}
+		return resp, Curl_Error{code}
 	}
 
-	return nil
+	code = libcurl.curl_easy_getinfo(session, .INFO_RESPONSE_CODE, &resp.status)
+	if code != .E_OK {
+		fmt.eprintf("curl_easy_getinfo() failed: %s\n", libcurl.curl_easy_strerror(code))
+		return resp, Curl_Error{code}
+	}
+
+	return resp, nil
 }
 
 session_post :: proc(
@@ -178,26 +183,38 @@ session_post :: proc(
 	return resp, nil
 }
 
-session_delete :: proc(session: ^libcurl.Session, url: string) -> (err: Http_Client_Error) {
+session_delete :: proc(
+	session: ^libcurl.Session,
+	url: string,
+) -> (
+	resp: Response,
+	err: Http_Client_Error,
+) {
 	code := libcurl.curl_easy_setopt(session, .OPT_URL, url)
 	if code != .E_OK {
 		fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
-		return Curl_Error{code}
+		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_setopt(session, .OPT_CUSTOMREQUEST, "DELETE")
 	if code != .E_OK {
 		fmt.eprintf("curl_easy_setopt(DELETE) failed: %s\n", libcurl.curl_easy_strerror(code))
-		return Curl_Error{code}
+		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_perform(session)
 	if code != .E_OK {
 		fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
-		return Curl_Error{code}
+		return resp, Curl_Error{code}
 	}
 
-	return nil
+	code = libcurl.curl_easy_getinfo(session, .INFO_RESPONSE_CODE, &resp.status)
+	if code != .E_OK {
+		fmt.eprintf("curl_easy_getinfo() failed: %s\n", libcurl.curl_easy_strerror(code))
+		return resp, Curl_Error{code}
+	}
+
+	return resp, nil
 }
 
 session_get :: proc(
@@ -244,7 +261,7 @@ get :: proc(url: string) -> (resp: Response, err: Http_Client_Error) {
 	return session_get(session, url)
 }
 
-delete :: proc(url: string) -> (err: Http_Client_Error) {
+delete :: proc(url: string) -> (resp: Response, err: Http_Client_Error) {
 	session := session_init() or_return
 	defer session_done(session)
 	return session_delete(session, url)

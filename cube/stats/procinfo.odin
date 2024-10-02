@@ -105,9 +105,8 @@ read_disk :: proc(path: string) -> (disk: Disk, error: Stats_Error) {
 		disk.free_inodes = u64(fs.ffree)
 		return disk, nil
 	} else {
-		sb: strings.Builder
-		fmt.sbprintf(&sb, "Error calling statfs: %d", result)
-		return disk, Stats_Parse_Error{"disk", strings.to_string(sb)}
+		msg := fmt.aprintf("Error calling statfs: %d", result)
+		return disk, Stats_Parse_Error{"disk", msg}
 	}
 
 	return

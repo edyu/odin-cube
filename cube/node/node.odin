@@ -1,5 +1,7 @@
 package node
 
+import "base:builtin"
+
 Node :: struct {
 	name:             string,
 	ip:               string,
@@ -12,11 +14,10 @@ Node :: struct {
 	task_count:       int `fmt:"-"`,
 }
 
-new :: proc(name: string, ip: string, memory: i64, disk: i64, role: string) -> (node: Node) {
+new :: proc(name: string, api: string, role: string) -> (node: ^Node) {
+	node = builtin.new(Node)
 	node.name = name
-	node.ip = ip
-	node.memory = memory
-	node.disk = disk
+	node.api = api
 	node.role = role
 
 	return node
