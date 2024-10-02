@@ -9,6 +9,7 @@ import "core:c"
 import "core:encoding/json"
 import "core:fmt"
 import "core:io"
+import "core:log"
 import "core:strings"
 
 Client :: struct {
@@ -59,7 +60,6 @@ image_pull :: proc(
 	stream: io.Reader,
 	err: Client_Error,
 ) {
-	fmt.printf("docker image pull\n")
 	session := http.session_init() or_return
 	defer http.session_done(session)
 
@@ -103,13 +103,13 @@ container_create :: proc(
 		m: Error_Message
 		err := json.unmarshal_string(reply.body, &m)
 		if err != nil {
-			fmt.eprintf("error marshalling: %v\n", err)
+			log.errorf("Error marshalling: %v", err)
 		}
 		return resp, Response_Error{reply.status, m.message}
 	} else {
 		err := json.unmarshal_string(reply.body, &resp)
 		if err != nil {
-			fmt.eprintf("error marshalling: %s -> %v\n", reply, err)
+			log.errorf("Error marshalling: %s -> %v", reply, err)
 		}
 	}
 
@@ -136,12 +136,12 @@ container_logs :: proc(
 	reader: io.Reader,
 	err: Client_Error,
 ) {
-	fmt.printf("docker constainer logs %s\n", id)
+	fmt.printfln("docker constainer logs %s", id)
 	return
 }
 
 std_copy :: proc(dstout, dsterr: io.Writer, src: io.Reader) -> (writtent: i64, err: Client_Error) {
-	fmt.printf("docker std copy\n")
+	fmt.println("docker std copy")
 	return
 }
 
@@ -185,13 +185,13 @@ container_inspect :: proc(id: string) -> (resp: container.Inspect_Response, err:
 		m: Error_Message
 		err := json.unmarshal_string(reply.body, &m)
 		if err != nil {
-			fmt.eprintf("error marshalling: %v\n", err)
+			log.errorf("Error marshalling: %v", err)
 		}
 		return resp, Response_Error{reply.status, m.message}
 	} else {
 		err := json.unmarshal_string(reply.body, &resp)
 		if err != nil {
-			fmt.eprintf("error marshalling: %s -> %v\n", reply, err)
+			log.errorf("Error marshalling: %s -> %v", reply, err)
 		}
 	}
 

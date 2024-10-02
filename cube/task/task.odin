@@ -171,7 +171,7 @@ new_docker :: proc(config: ^Docker_Config) -> (docker: Docker) {
 docker_run :: proc(d: ^Docker) -> Docker_Result {
 	reader, err := client.image_pull(d.config.image, image.Pull_Options{})
 	if err != nil {
-		fmt.printf("Error pulling image %s: %v\n", d.config.image, err)
+		log.errorf("Error pulling image %s: %v", d.config.image, err)
 		return Docker_Result{err, "", "", nil}
 	}
 	stdout := os.stream_from_handle(os.stdout)
@@ -206,19 +206,19 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 
 	resp, cerr := client.container_create(d.config.name, options)
 	if cerr != nil {
-		fmt.printf("Error creating container using image %s: %v\n", d.config.image, cerr)
+		log.errorf("Error creating container using image %s: %v", d.config.image, cerr)
 		return Docker_Result{cerr, "create", "", nil}
 	}
 
 	serr := client.container_start(resp.id, container.Start_Options{})
 	if serr != nil {
-		fmt.printf("Error starting container %s: %v\n", resp.id, serr)
+		log.errorf("Error starting container %s: %v", resp.id, serr)
 		return Docker_Result{serr, "start", resp.id, resp}
 	}
 
 	out, lerr := client.container_logs(resp.id, container.Logs_Options{true, true})
 	if lerr != nil {
-		fmt.printf("Error getting logs for container %s: %v\n", resp.id, lerr)
+		log.errorf("Error getting logs for container %s: %v", resp.id, lerr)
 		return Docker_Result{lerr, "logs", resp.id, resp}
 	}
 
@@ -229,10 +229,10 @@ docker_run :: proc(d: ^Docker) -> Docker_Result {
 }
 
 docker_stop :: proc(d: ^Docker, id: string) -> Docker_Result {
-	fmt.printf("Attempting to stop container %s\n", id)
+	log.debugf("Attempting to stop container %s", id)
 	err := client.container_stop(id, container.Stop_Options{})
 	if err != nil {
-		fmt.printf("Error stopping container %s: %v\n", id, err)
+		log.errorf("Error stopping container %s: %v", id, err)
 		return Docker_Result{err, "stop", id, nil}
 	}
 
@@ -240,10 +240,10 @@ docker_stop :: proc(d: ^Docker, id: string) -> Docker_Result {
 }
 
 docker_remove :: proc(d: ^Docker, id: string) -> Docker_Result {
-	fmt.printf("Attempting to remove container %s\n", id)
+	log.debugf("Attempting to remove container %s", id)
 	err := client.container_remove(id, container.Remove_Options{true, false, false})
 	if err != nil {
-		fmt.printf("Error removing container %s: %v\n", id, err)
+		log.errorf("Error removing container %s: %v", id, err)
 		return Docker_Result{err, "remove", id, nil}
 	}
 
@@ -251,10 +251,9 @@ docker_remove :: proc(d: ^Docker, id: string) -> Docker_Result {
 }
 
 docker_inspect :: proc(d: ^Docker, id: string) -> Docker_Result {
-	fmt.printf("Attempting to inspect container %s\n", id)
 	resp, err := client.container_inspect(id)
 	if err != nil {
-		fmt.printf("Error inspecting container %s: %v\n", id, err)
+		log.errorf("Error inspecting container %s: %v", id, err)
 		return Docker_Result{err, "inspect", id, nil}
 	}
 	fmt.println("INSPECT resp:", resp)

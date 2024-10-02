@@ -1,11 +1,12 @@
 package http
 
-import "../libmhd"
 import "base:builtin"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
 import "core:strings"
+
+import "../libmhd"
 
 Server :: struct {
 	daemon: ^libmhd.Daemon,

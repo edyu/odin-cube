@@ -1,6 +1,7 @@
 package stats
 
 import "core:fmt"
+import "core:log"
 
 Stats :: struct {
 	mem_stats:  Mem_Info,
@@ -21,7 +22,7 @@ get_stats :: proc() -> (s: Stats) {
 get_mem_info :: proc() -> (info: Mem_Info) {
 	stat, err := read_mem_info("/proc/meminfo")
 	if err != nil {
-		fmt.eprintfln("Error reading from /proc/meminfo: %v", err)
+		log.errorf("Error reading from /proc/meminfo: %v", err)
 		return info
 	}
 	return stat
@@ -30,7 +31,7 @@ get_mem_info :: proc() -> (info: Mem_Info) {
 get_disk_info :: proc() -> (info: Disk) {
 	stat, err := read_disk("/")
 	if err != nil {
-		fmt.eprintfln("Error reading from /: %v", err)
+		log.errorf("Error reading from /: %v", err)
 		return info
 	}
 	return stat
@@ -39,7 +40,7 @@ get_disk_info :: proc() -> (info: Disk) {
 get_cpu_stats :: proc() -> (info: Cpu_Stat) {
 	stat, err := read_stat("/proc/stat")
 	if err != nil {
-		fmt.eprintfln("Error reading from /proc/stat: %v", err)
+		log.errorf("Error reading from /proc/stat: %v", err)
 		return info
 	}
 	return stat
@@ -48,7 +49,7 @@ get_cpu_stats :: proc() -> (info: Cpu_Stat) {
 get_load_avg :: proc() -> (info: Load_Avg) {
 	stat, err := read_load_avg("/proc/loadavg")
 	if err != nil {
-		fmt.eprintfln("Error reading from /proc/loadavg: %v", err)
+		log.errorf("Error reading from /proc/loadavg: %v", err)
 		return info
 	}
 	return stat

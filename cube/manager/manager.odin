@@ -15,6 +15,19 @@ import "../scheduler"
 import "../task"
 import "../worker"
 
+Manager_Error :: union {
+	Health_Check_Error,
+	Scheduler_Error,
+}
+
+Health_Check_Error :: struct {
+	message: string,
+}
+
+Scheduler_Error :: struct {
+	message: string,
+}
+
 Manager :: struct {
 	pending:         queue.Queue(^task.Event) `fmt:"-"`,
 	task_db:         map[lib.UUID]^task.Task,
@@ -72,40 +85,40 @@ deinit :: proc(m: ^Manager) {
 select_worker :: proc(m: ^Manager, t: task.Task) -> (node: ^node.Node, err: Manager_Error) {
 	candidates := scheduler.select_candidate_nodes(&m.scheduler, t, m.worker_nodes)
 	if len(candidates) == 0 {
-		fmt.eprintfln("No available candidates match resource request for task %s", t.id)
-		return nil, Scheduler_Error{"no candidate"}
+		msg := fmt.aprintf("No available candidates match resource request for task %s", t.id)
+		return nil, Scheduler_Error{msg}
 	}
 
 	scores := scheduler.score(&m.scheduler, t, candidates)
-	log.debugf("[manager] scheduler scores: %v", scores)
+	log.debugf("Scheduler scores: %v", scores)
 	node = scheduler.pick(&m.scheduler, scores, candidates)
-	log.debugf("[manager] scheduler picked: %v", node)
+	log.debugf("Scheduler picked: %v", node)
 
 	return node, nil
 }
 
 do_update_tasks :: proc(m: ^Manager) {
 	for worker in m.workers {
-		fmt.printfln("[manager]: Checking worker %v for task updates", worker)
+		log.debugf("Checking worker %v for task updates", worker)
 		url := fmt.tprintf("http://%s/tasks", worker)
 		resp, err := http.get(url)
 		if err != nil {
-			fmt.eprintfln("Error connecting to %v: %v", worker, err)
+			log.errorf("Error connecting to %v: %v", worker, err)
 		} else {
 			if http.Status_Code(resp.status) != .HTTP_OK {
-				fmt.eprintfln("Error sending request: %v", err)
+				log.errorf("Error sending request: %v", err)
 			} else {
 				tasks: []task.Task
 				merr := json.unmarshal_string(resp.body, &tasks)
 				if merr != nil {
-					fmt.printfln("Error marshalling tasks: %v", err)
+					log.errorf("Error marshalling tasks: %v", err)
 				} else {
 					for t in tasks {
-						fmt.printfln("[manager]: Attempting to update task %v", t.id)
+						log.debugf("Attempting to update task %v", t.id)
 
 						if t.id not_in m.task_db {
-							fmt.printfln("[manager]: Task with id %s not found", t.id)
-							return
+							log.warnf("Task with id %s not found", t.id)
+							continue
 						}
 
 						ut := m.task_db[t.id]
@@ -128,10 +141,10 @@ do_update_tasks :: proc(m: ^Manager) {
 
 update_tasks :: proc(m: ^Manager) {
 	for {
-		fmt.println("[manager]: Checking for task updates from workers")
+		log.debug("Checking for task updates from workers")
 		do_update_tasks(m)
-		fmt.println("[manager]: Task updates completed")
-		fmt.println("[manager]: Update: Sleeping for 15 seconds")
+		log.debug("Task updates completed")
+		log.debug("Sleeping for 15 seconds")
 		time.sleep(15 * time.Second)
 	}
 }
@@ -142,7 +155,7 @@ send_work :: proc(m: ^Manager) {
 		t := &e.task
 
 		m.event_db[e.id] = e
-		fmt.printfln("[manager] Send: Pulled %v off pending queue", e)
+		log.debugf("Pulled %v off pending queue", e)
 
 		task_worker, ok := m.task_worker_map[t.id]
 		if ok {
@@ -153,7 +166,7 @@ send_work :: proc(m: ^Manager) {
 				return
 			}
 
-			fmt.eprintfln(
+			log.warnf(
 				"Invalid request: existing task %s is in state %s and cannot transition to the completed state",
 				persisted_task.id,
 				persisted_task.state,
@@ -163,7 +176,7 @@ send_work :: proc(m: ^Manager) {
 
 		w, err := select_worker(m, t^)
 		if err != nil {
-			fmt.eprintfln("Error selecting worker for task %s: %v", t.id, err)
+			log.errorf("Error selecting worker for task %s: %v", t.id, err)
 		}
 
 		append(&m.worker_task_map[w.name], e.task.id)
@@ -179,7 +192,7 @@ send_work :: proc(m: ^Manager) {
 		url := fmt.tprintf("http://%s/tasks", w.name)
 		resp, rerr := http.post(url, "application/json", string(data))
 		if rerr != nil {
-			fmt.eprintln("Error connecting to %v: %v", w, rerr)
+			log.errorf("Error connecting to %v: %v", w, rerr)
 			queue.push_back(&m.pending, e)
 			return
 		}
@@ -187,31 +200,31 @@ send_work :: proc(m: ^Manager) {
 			e := worker.Error_Response{}
 			err := json.unmarshal_string(resp.body, &e)
 			if err != nil {
-				fmt.eprintfln("Error decoding response: %v", err)
+				log.errorf("Error decoding response: %v", err)
 				return
 			}
-			fmt.eprintf("Response error (%d): %s", e.status_code, e.message)
+			log.warnf("Response error (%d): %s", e.status_code, e.message)
 			return
 		}
 
 		rt := task.Task{}
 		merr := json.unmarshal_string(resp.body, &rt)
 		if merr != nil {
-			fmt.eprintfln("Error decoding response: %s", merr)
+			log.errorf("Error decoding response: %v", merr)
 			return
 		}
-		// w.task_count += 1
-		fmt.println(rt)
+		w.task_count += 1
+		log.debugf("Received response from worker: %#v", rt)
 	} else {
-		fmt.println("[manager]: No work in the queue")
+		log.debug("No work in the queue")
 	}
 }
 
 process_tasks :: proc(m: ^Manager) {
 	for {
-		fmt.println("[manager]: Processing any tasks in the queue")
+		log.debug("Processing any tasks in the queue")
 		send_work(m)
-		fmt.println("[manager]: Send: Sleeping for 10 seconds")
+		log.debug("Sleeping for 10 seconds")
 		time.sleep(10 * time.Second)
 	}
 }
@@ -230,58 +243,47 @@ get_tasks :: proc(m: ^Manager) -> (tasks: []task.Task) {
 	return tasks
 }
 
-get_host_port :: proc(ports: connection.Port_Map) -> string {
-	for k, _ in ports {
-		return ports[k][0].host_port
-	}
-	// for k, v in ports {
-	// 	return v
-	// }
-
-	return ""
-}
-
-Manager_Error :: union {
-	Health_Check_Error,
-	Scheduler_Error,
-}
-
-Health_Check_Error :: struct {
-	message: string,
-}
-
-Scheduler_Error :: struct {
-	message: string,
-}
-
-check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
-	fmt.printfln("[manager]: Calling health check for task %s: %s", t.id, t.health_check)
-
+restart_task :: proc(m: ^Manager, t: ^task.Task) {
 	w := m.task_worker_map[t.id]
-	host_port := get_host_port(t.host_ports)
-	if host_port == "" {
-		fmt.printfln("[manager]: Have not collected task %s host port yet. Skipping", t.id)
-		return nil
-	}
-	worker := strings.split(w, ":")
-	url := fmt.tprintf("http://%s:%s%s", worker[0], host_port, t.health_check)
-	fmt.printfln("[manager]: Calling health check for task %s: %s", t.id, url)
-	resp, err := http.get(url)
+	t.state = .Scheduled
+	t.restart_count += 1
+	m.task_db[t.id] = t
+
+	e := task.new_event(t^)
+	// te.task.id = lib.new_uuid()
+	e.state = .Running
+	data, err := json.marshal(e^)
 	if err != nil {
-		fmt.eprintln("Health check error:", err)
-		msg := fmt.aprintf("Error connecting to health check %s", url)
-		return Health_Check_Error{msg}
+		log.errorf("Unable to marshal task object: %v", err)
+		return
 	}
 
-	if http.Status_Code(resp.status) != .HTTP_OK {
-		msg := fmt.aprintf("Error health check for task %s did not return 200", t.id)
-		fmt.eprintln(msg)
-		return Health_Check_Error{msg}
+	url := fmt.tprintf("http://%s/tasks", w)
+	resp, rerr := http.post(url, "application/json", string(data))
+	if rerr != nil {
+		log.errorf("Error connecting to %s: %v", w, rerr)
+		queue.push_back(&m.pending, e)
+		return
 	}
 
-	fmt.printfln("Task %s health check responese: %v", t.id, resp.status)
+	if http.Status_Code(resp.status) != .HTTP_CREATED {
+		e: worker.Error_Response
+		derr := json.unmarshal_string(resp.body, &e)
+		if derr != nil {
+			log.errorf("Error decoding response: %v", derr)
+			return
+		}
+		log.warnf("Response error (%d): %s", e.status_code, e.message)
+		return
+	}
 
-	return nil
+	new_task: task.Task
+	derr := json.unmarshal_string(resp.body, &new_task)
+	if derr != nil {
+		log.errorf("Error decoding response: %v", err)
+		return
+	}
+	log.debugf("Response from worker: %#v", t)
 }
 
 do_health_checks :: proc(m: ^Manager) {
@@ -299,68 +301,64 @@ do_health_checks :: proc(m: ^Manager) {
 	}
 }
 
+check_health :: proc(m: ^Manager) {
+	for {
+		log.debug("Performing task health check")
+		do_health_checks(m)
+		log.debug("Task health checks completed")
+		log.debug("Sleeping for 60 seconds")
+		time.sleep(60 * time.Second)
+	}
+}
+
+get_host_port :: proc(ports: connection.Port_Map) -> string {
+	for k, _ in ports {
+		return ports[k][0].host_port
+	}
+	return ""
+}
+
+check_task_health :: proc(m: ^Manager, t: ^task.Task) -> Manager_Error {
+	log.debugf("Calling health check for task %s: %s", t.id, t.health_check)
+
+	w := m.task_worker_map[t.id]
+	host_port := get_host_port(t.host_ports)
+	if host_port == "" {
+		log.warnf("Have not collected task %s host port yet. Skipping", t.id)
+		return nil
+	}
+	worker := strings.split(w, ":")
+	url := fmt.tprintf("http://%s:%s%s", worker[0], host_port, t.health_check)
+	log.debugf("Calling health check for task %s: %s", t.id, url)
+	resp, err := http.get(url)
+	if err != nil {
+		msg := fmt.aprintf("Error connecting to health check %s", url)
+		log.errorf("%s: %v", msg, err)
+		return Health_Check_Error{msg}
+	}
+
+	if http.Status_Code(resp.status) != .HTTP_OK {
+		msg := fmt.aprintf("Error health check for task %s did not return 200", t.id)
+		log.warnf(msg)
+		return Health_Check_Error{msg}
+	}
+
+	log.debugf("Task %s health check responese: %v", t.id, resp.status)
+
+	return nil
+}
+
 stop_task :: proc(m: ^Manager, worker: string, task_id: lib.UUID) {
 	url := fmt.tprintf("http://%s/tasks/%s", worker, task_id)
 	resp, err := http.delete(url)
 	if err != nil {
-		fmt.eprintfln("Error connecting to worker at %s: %v", url, err)
+		log.errorf("Error connecting to worker at %s: %v", url, err)
+		return
 	}
 	if http.Status_Code(resp.status) != .HTTP_NO_CONTENT {
-		fmt.eprintfln("Error processing request: %v", resp)
-	}
-	fmt.printfln("[manager]: Task %s has been scheduled to be stopped", task_id)
-}
-
-restart_task :: proc(m: ^Manager, t: ^task.Task) {
-	w := m.task_worker_map[t.id]
-	t.state = .Scheduled
-	t.restart_count += 1
-	m.task_db[t.id] = t
-
-	e := task.new_event(t^)
-	// te.task.id = lib.new_uuid()
-	e.state = .Running
-	data, err := json.marshal(e^)
-	if err != nil {
-		fmt.eprintfln("Unable to marshal task object: %v", err)
+		log.warnf("Error processing request: %v", resp)
 		return
 	}
-
-	url := fmt.tprintf("http://%s/tasks", w)
-	resp, rerr := http.post(url, "application/json", string(data))
-	if rerr != nil {
-		fmt.eprintfln("Error connecting to %s: %v", w, err)
-		queue.push_back(&m.pending, e)
-		return
-	}
-
-	if http.Status_Code(resp.status) != .HTTP_CREATED {
-		e: worker.Error_Response
-		derr := json.unmarshal_string(resp.body, &e)
-		if derr != nil {
-			fmt.eprintfln("Error decoding response: %v", derr)
-			return
-		}
-		fmt.eprintfln("Response error (%d): %s", e.status_code, e.message)
-		return
-	}
-
-	new_task: task.Task
-	derr := json.unmarshal_string(resp.body, &new_task)
-	if derr != nil {
-		fmt.eprintfln("Error decoding response: %v", err)
-		return
-	}
-	fmt.printfln("[manager]: Response from worker: %#v", t)
-}
-
-check_health :: proc(m: ^Manager) {
-	for {
-		fmt.println("[manager]: Performing task health check")
-		do_health_checks(m)
-		fmt.println("[manager]: Task health checks completed")
-		fmt.println("[manager]: Health: Sleeping for 60 seconds")
-		time.sleep(60 * time.Second)
-	}
+	log.debugf("Task %s has been scheduled to be stopped", task_id)
 }
 

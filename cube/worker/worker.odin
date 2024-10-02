@@ -42,32 +42,21 @@ add_task :: proc(w: ^Worker, t: ^task.Task) {
 
 collect_stats :: proc(w: ^Worker) {
 	for {
-		fmt.println("[worker]: Collecting stats")
+		log.debugf("[%s] Collecting stats", w.name)
 		w.stats = stats.get_stats()
-		w.stats.task_count = w.task_count
-		// w.task_count = w.stats.task_count
+		w.task_count = w.stats.task_count
 		time.sleep(15 * time.Second)
 	}
-}
-
-get_tasks :: proc(w: ^Worker) -> (tasks: []task.Task) {
-	tasks = make([]task.Task, len(w.db))
-	i := 0
-	for _, t in w.db {
-		tasks[i] = t^
-		i += 1
-	}
-	return tasks
 }
 
 run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 	t, ok := queue.pop_front_safe(&w.queue)
 	if !ok {
-		fmt.println("[worker]: No tasks in the queue")
+		log.debugf("[%s] No tasks in the queue", w.name)
 		return result
 	}
 
-	fmt.printfln("[worker]: Found task in queue: %v", t)
+	log.debugf("[%s] Found task in queue: %v", w.name, t)
 
 	w.db[t.id] = t
 
@@ -86,7 +75,7 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 			if t.container_id != "" {
 				result = stop_task(w, t)
 				if result.error != nil {
-					fmt.printfln("Error: %v", result.error)
+					log.errorf("[%s] Error: %v", w.name, result.error)
 				}
 			}
 			result = start_task(w, t)
@@ -96,14 +85,22 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 					#partial switch e in r {
 					case client.Response_Error:
 						if e.code == 409 {
-							fmt.eprintln("Got existing conflict container; stopping")
+							log.warnf("[%s] Got existing conflict container; stopping", w.name)
 							err := client.container_stop(t.name, container.Stop_Options{})
 							if err != nil {
-								fmt.eprintln("Error stopping existing container:", err)
+								log.errorf(
+									"[%s] Error stopping existing container: %v",
+									w.name,
+									err,
+								)
 							}
 							err = client.container_remove(t.name, container.Remove_Options{})
 							if err != nil {
-								fmt.eprintln("Error removing existing container:", err)
+								log.errorf(
+									"[%s] Error removing existing container: %v",
+									w.name,
+									err,
+								)
 							}
 						}
 					}
@@ -112,11 +109,11 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 		case .Completed:
 			result = stop_task(w, t)
 		case:
-			fmt.eprintfln("This is a mistake. persisted task: %v, queued task: %v", pt, t)
+			log.warnf("[%s] This is a mistake. persisted task: %v, queued task: %v", w.name, pt, t)
 			result.error = task.Unreachable_Error{}
 		}
 	} else {
-		fmt.eprintfln("Invalid transition from %v to %v", pt.state, t.state)
+		log.warnf("[%s] Invalid transition from %v to %v", w.name, pt.state, t.state)
 		result.error = task.Invalid_Transition_Error{pt.state, t.state}
 	}
 
@@ -128,12 +125,12 @@ run_tasks :: proc(w: ^Worker) {
 		if w.queue.len != 0 {
 			result := run_task(w)
 			if result.error != nil {
-				fmt.eprintfln("Error running task: %v", result.error)
+				log.errorf("[%s] Error running task: %v", w.name, result.error)
 			}
 		} else {
-			fmt.println("[worker]: No tasks to process currently")
+			log.debugf("[%s] No tasks to process currently", w.name)
 		}
-		fmt.println("[worker]: Run: Sleeping for 10 seconds")
+		log.debugf("[%s] Sleeping for 10 seconds", w.name)
 		time.sleep(10 * time.Second)
 	}
 }
@@ -144,7 +141,7 @@ start_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	d := task.new_docker(&config)
 	result = task.docker_run(&d)
 	if result.error != nil {
-		fmt.eprintf("Error running task %s: %v\n", t.id, result.error)
+		log.errorf("[%s] Error running task %s: %v", w.name, t.id, result.error)
 		t.state = .Failed
 		w.db[t.id] = t
 		return result
@@ -163,18 +160,28 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 
 	result = task.docker_stop(&d, t.container_id)
 	if result.error != nil {
-		fmt.printf("Error stopping container %v: %v\n", t.container_id, result.error)
+		log.errorf("[%s] Error stopping container %v: %v", w.name, t.container_id, result.error)
 	}
 	result = task.docker_remove(&d, t.container_id)
 	if result.error != nil {
-		fmt.printf("Error removing container %v: %v\n", t.container_id, result.error)
+		log.errorf("[%s] Error removing container %v: %v", w.name, t.container_id, result.error)
 	}
 	t.finish_time = lib.new_time()
 	t.state = .Completed
 	w.db[t.id] = t
-	fmt.printf("[worker]: Stopped and removed container %v for task %s\n", t.container_id, t.id)
+	log.debugf("[%s] Stopped and removed container %v for task %s", w.name, t.container_id, t.id)
 
 	return result
+}
+
+get_tasks :: proc(w: ^Worker) -> (tasks: []task.Task) {
+	tasks = make([]task.Task, len(w.db))
+	i := 0
+	for _, t in w.db {
+		tasks[i] = t^
+		i += 1
+	}
+	return tasks
 }
 
 inspect_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
@@ -188,19 +195,20 @@ do_update_tasks :: proc(w: ^Worker) {
 		if t.state == .Running {
 			result := inspect_task(w, t)
 			if result.error != nil {
-				fmt.eprintfln("ERROR: %v", result.error)
+				log.errorf("[%s] ERROR: %v", w.name, result.error)
 			}
 
 			if result.response == nil {
-				fmt.printfln("No container for running task %s", id)
+				log.warnf("[%s] No container for running task %s", w.name, id)
 				t.state = .Failed
 			}
 
 			#partial switch r in result.response {
 			case container.Inspect_Response:
 				if r.state.status == "exited" {
-					fmt.printfln(
-						"Container for task %s in non-running state %s",
+					log.warnf(
+						"[%s] Container for task %s in non-running state %s",
+						w.name,
 						id,
 						r.state.status,
 					)
@@ -217,10 +225,10 @@ do_update_tasks :: proc(w: ^Worker) {
 
 update_tasks :: proc(w: ^Worker) {
 	for {
-		fmt.println("[worker]: Checking status of tasks")
+		log.debugf("[%s] Checking status of tasks", w.name)
 		do_update_tasks(w)
-		fmt.println("[worker]: Task updates completed")
-		fmt.println("[worker]: Update: Sleeping for 15 seconds")
+		log.debugf("[%s] Task updates completed", w.name)
+		log.debugf("[%s] Sleeping for 15 seconds", w.name)
 		time.sleep(15 * time.Second)
 	}
 }

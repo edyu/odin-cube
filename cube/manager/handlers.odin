@@ -5,6 +5,7 @@ import "../lib"
 import "../task"
 import "core:encoding/json"
 import "core:fmt"
+import "core:log"
 import "core:strings"
 
 start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
@@ -13,8 +14,8 @@ start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reque
 	er := json.unmarshal(r.body[:], te)
 	if er != nil {
 		free(te)
-		msg := fmt.tprintf("Error unmarshalling body: %v", er, newline = true)
-		fmt.eprint(msg)
+		msg := fmt.tprintf("Error unmarshalling body: %v", er)
+		log.error(msg)
 		http.set_response_status(w, .HTTP_BAD_REQUEST)
 		e := Error_Response{.HTTP_BAD_REQUEST, msg}
 		m, _ := json.marshal(e)
@@ -23,11 +24,11 @@ start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reque
 	}
 
 	add_task(manager, te)
-	fmt.printf("Added task %v\n", te.task.id)
+	log.debugf("Added task %v", te.task.id)
 	data, err := json.marshal(te.task)
 	if err != nil {
-		msg := fmt.tprintf("Error marshalling data: %v", err, newline = true)
-		fmt.eprint(msg)
+		msg := fmt.tprintf("Error marshalling data: %v", err)
+		log.error(msg)
 		http.set_response_status(w, .HTTP_BAD_REQUEST)
 		e := Error_Response{.HTTP_BAD_REQUEST, msg}
 		m, _ := json.marshal(e)
@@ -45,13 +46,12 @@ get_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request
 	defer delete(tasks)
 	data, err := json.marshal(tasks)
 	if err != nil {
-		msg := fmt.tprintf("Error marshalling data: %v", err, newline = true)
-		fmt.eprint(msg)
+		msg := fmt.tprintf("Error marshalling data: %v", err)
+		log.error(msg)
 		http.set_response_status(w, .HTTP_BAD_REQUEST)
 		e := Error_Response{.HTTP_BAD_REQUEST, msg}
 		m, _ := json.marshal(e)
 		append(&w.buffer, ..m)
-		return
 	} else {
 		w.header["Content-Type"] = "application/json"
 		http.set_response_status(w, .HTTP_OK)
@@ -67,17 +67,15 @@ stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reques
 		task_id = parts[len(parts) - 1]
 	}
 	if task_id == "" {
-		fmt.eprintln("No task id passed in request")
+		log.warn("No task id passed in request")
 		http.set_response_status(w, .HTTP_BAD_REQUEST)
 		return
-	} else {
-		fmt.printfln("Stopping %s", task_id)
 	}
 
 	t_id, ok := lib.parse_uuid(task_id)
 	if !ok {
-		msg := fmt.tprintf("Cannot parse task id %s", task_id, newline = true)
-		fmt.eprint(msg)
+		msg := fmt.tprintf("Cannot parse task id %s", task_id)
+		log.warn(msg)
 		http.set_response_status(w, .HTTP_NOT_FOUND)
 		e := Error_Response{.HTTP_NOT_FOUND, msg}
 		m, _ := json.marshal(e)
@@ -86,8 +84,8 @@ stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reques
 	}
 	stopping_task, found := manager.task_db[t_id]
 	if !found {
-		msg := fmt.tprintf("No task with task id %s found", t_id, newline = true)
-		fmt.eprint(msg)
+		msg := fmt.tprintf("No task with task id %s found", t_id)
+		log.warn(msg)
 		http.set_response_status(w, .HTTP_NOT_FOUND)
 		e := Error_Response{.HTTP_NOT_FOUND, msg}
 		m, _ := json.marshal(e)
@@ -101,7 +99,7 @@ stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reques
 	te.state = .Completed
 	add_task(manager, te)
 
-	fmt.printfln("Added task event %v to stop task %v", te.id, stopping_task.id)
+	log.debugf("Added task event %v to stop task %v", te.id, stopping_task.id)
 	http.set_response_status(w, .HTTP_NO_CONTENT)
 }
 

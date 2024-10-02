@@ -28,7 +28,7 @@ setup_routes :: proc(mux: ^router.Router, ctx: rawptr) {
 start :: proc(address: string, port: u16, worker: ^Worker) -> (api: Api) {
 	api.address = address
 	api.port = port
-	fmt.printf("starting server %s:%d\n", address, port)
+	fmt.printfln("starting server %s:%d", address, port)
 	server, err := router.start_server(port, setup_routes, worker)
 	if err != nil {
 		panic("error starting http daemon")

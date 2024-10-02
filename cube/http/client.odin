@@ -4,6 +4,7 @@ import "../libcurl"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
+import "core:log"
 import "core:strings"
 
 Http_Client_Error :: union {
@@ -23,7 +24,7 @@ Response :: struct {
 client_init :: proc() -> Http_Client_Error {
 	code := libcurl.curl_global_init(.GLOBAL_ALL)
 	if code != .E_OK {
-		fmt.eprintf("curl_global_init() failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_global_init() failed: %s", libcurl.curl_easy_strerror(code))
 		return Curl_Error{code}
 	}
 	return nil
@@ -47,10 +48,7 @@ response_callback :: proc "c" (
 	context = runtime.default_context()
 	code := libcurl.curl_easy_getinfo(data.session, .INFO_RESPONSE_CODE, &data.response.status)
 	if code != .E_OK {
-		fmt.eprintf(
-			"curl_easy_getinfo(RESPONSE_CODE) failed: %s\n",
-			libcurl.curl_easy_strerror(code),
-		)
+		log.warnf("curl_easy_getinfo(RESPONSE_CODE) failed: %s", libcurl.curl_easy_strerror(code))
 	} else {
 		reply := strings.clone_from_ptr(transmute([^]u8)buffer, int(size * nmemb))
 		data.response.body = reply
@@ -89,7 +87,7 @@ session_set_content_type :: proc(
 	// defer libcurl.curl_slist_free_all(hs)
 	code := libcurl.curl_easy_setopt(session, .OPT_HTTPHEADER, hs)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(HTTPHEADER) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(HTTPHEADER) failed: %s", libcurl.curl_easy_strerror(code))
 		return Curl_Error{code}
 	}
 	return nil
@@ -106,7 +104,7 @@ session_post_only :: proc(
 ) {
 	code := libcurl.curl_easy_setopt(session, .OPT_URL, url)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(URL) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
@@ -115,19 +113,19 @@ session_post_only :: proc(
 	request := strings.clone_to_cstring(content, context.temp_allocator)
 	code = libcurl.curl_easy_setopt(session, .OPT_POSTFIELDS, request)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(POSTFIELDS) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(POSTFIELDS) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_perform(session)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_perform() failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_getinfo(session, .INFO_RESPONSE_CODE, &resp.status)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_getinfo() failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_getinfo() failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
@@ -145,7 +143,7 @@ session_post :: proc(
 ) {
 	code := libcurl.curl_easy_setopt(session, .OPT_URL, url)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(URL) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
@@ -154,29 +152,26 @@ session_post :: proc(
 	request := strings.clone_to_cstring(content, context.temp_allocator)
 	code = libcurl.curl_easy_setopt(session, .OPT_POSTFIELDS, request)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(POSTFIELDS) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(POSTFIELDS) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	data := Callback_Data{session, &resp}
 	code = libcurl.curl_easy_setopt(session, .OPT_WRITEDATA, &data)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(WRITEDATA) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(WRITEDATA) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_setopt(session, .OPT_WRITEFUNCTION, response_callback)
 	if code != .E_OK {
-		fmt.eprintf(
-			"curl_easy_setopt(WRITEFUNCTION) failed: %s\n",
-			libcurl.curl_easy_strerror(code),
-		)
+		log.warnf("curl_easy_setopt(WRITEFUNCTION) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_perform(session)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_perform() failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
@@ -192,25 +187,25 @@ session_delete :: proc(
 ) {
 	code := libcurl.curl_easy_setopt(session, .OPT_URL, url)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(URL) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_setopt(session, .OPT_CUSTOMREQUEST, "DELETE")
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(DELETE) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(DELETE) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_perform(session)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_perform() failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_getinfo(session, .INFO_RESPONSE_CODE, &resp.status)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_getinfo() failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_getinfo() failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
@@ -226,29 +221,26 @@ session_get :: proc(
 ) {
 	code := libcurl.curl_easy_setopt(session, .OPT_URL, url)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(URL) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(URL) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	data := Callback_Data{session, &resp}
 	code = libcurl.curl_easy_setopt(session, .OPT_WRITEDATA, &data)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_setopt(WRITEDATA) failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_setopt(WRITEDATA) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_setopt(session, .OPT_WRITEFUNCTION, response_callback)
 	if code != .E_OK {
-		fmt.eprintf(
-			"curl_easy_setopt(WRITEFUNCTION) failed: %s\n",
-			libcurl.curl_easy_strerror(code),
-		)
+		log.warnf("curl_easy_setopt(WRITEFUNCTION) failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
 	code = libcurl.curl_easy_perform(session)
 	if code != .E_OK {
-		fmt.eprintf("curl_easy_perform() failed: %s\n", libcurl.curl_easy_strerror(code))
+		log.warnf("curl_easy_perform() failed: %s", libcurl.curl_easy_strerror(code))
 		return resp, Curl_Error{code}
 	}
 
