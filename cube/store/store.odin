@@ -6,7 +6,10 @@ import "core:log"
 import "core:os"
 
 import "../lib"
-import "../task"
+
+Db_Type :: enum {
+	MEMORY = 1,
+}
 
 Store_Error :: union {
 	Nonexistent_Error,

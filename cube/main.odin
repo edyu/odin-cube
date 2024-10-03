@@ -85,13 +85,13 @@ main :: proc() {
 		wport = u16(strconv.atoi(wport_str))
 	}
 
-	w1 := worker.init("worker-1")
+	w1 := worker.init("worker-1", .MEMORY)
 	defer worker.deinit(&w1)
 
-	w2 := worker.init("worker-2")
+	w2 := worker.init("worker-2", .MEMORY)
 	defer worker.deinit(&w2)
 
-	w3 := worker.init("worker-3")
+	w3 := worker.init("worker-3", .MEMORY)
 	defer worker.deinit(&w3)
 
 	w1_task_thread := thread.create_and_start_with_data(&w1, worker_run_tasks, context)

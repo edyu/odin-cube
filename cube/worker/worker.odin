@@ -9,30 +9,38 @@ import "../docker/client"
 import "../docker/container"
 import "../lib"
 import "../stats"
+import "../store"
 import "../task"
 
 Worker_Error :: struct {
-	reason: string,
+	message: string,
 }
 
 Worker :: struct {
 	name:       string,
-	queue:      queue.Queue(^task.Task) `fmt:"-"`,
-	db:         map[lib.UUID]^task.Task `fmt:"-"`,
+	queue:      queue.Queue(^task.Task),
+	db:         ^store.Store(task.Task),
 	task_count: uint,
 	stats:      stats.Stats,
 }
 
-init :: proc(name: string) -> (w: Worker) {
+init :: proc(name: string, db_type: store.Db_Type) -> (w: Worker) {
 	w.name = name
 	queue.init(&w.queue)
-	w.db = make(map[lib.UUID]^task.Task)
+	switch db_type {
+	case .MEMORY:
+		w.db = store.new_store(store.Memory(task.Task), task.Task)
+	case:
+		msg := fmt.tprintf("invalid db: %s", db_type)
+		panic(msg)
+	}
 	return w
 }
 
 deinit :: proc(w: ^Worker) {
 	queue.destroy(&w.queue)
-	delete_map(w.db)
+	store.destroy_store(w.db)
+	free(w.db)
 }
 
 add_task :: proc(w: ^Worker, t: ^task.Task) {
@@ -57,18 +65,26 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 
 	log.debugf("[%s] Found task in queue: %v", w.name, t)
 
-	w.db[t.id] = t
-
-	pt, found := w.db[t.id]
-	if !found {
-		pt = t
-		w.db[t.id] = t
-	}
-	if pt.state == .Completed {
-		return stop_task(w, pt)
+	err := store.put(w.db, t.id, t)
+	if err != nil {
+		msg := fmt.aprintf("Error storing task %s: %v", t.id, err)
+		log.error(msg)
+		result.error = err
+		return result
 	}
 
-	if task.valid_state_transition(pt.state, t.state) {
+	t, err = store.get(w.db, t.id)
+	if err != nil {
+		msg := fmt.aprintf("Error sgetting task %s from database: %v", t.id, err)
+		log.error(msg)
+		result.error = err
+		return result
+	}
+	if t.state == .Completed {
+		return stop_task(w, t)
+	}
+
+	if task.valid_state_transition(t.state, t.state) {
 		#partial switch t.state {
 		case .Scheduled:
 			if t.container_id != "" {
@@ -78,6 +94,7 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 				}
 			}
 			result = start_task(w, t)
+			// existing container with same name from previous run
 			if result.error != nil && t.container_id == "" {
 				#partial switch r in result.error {
 				case client.Client_Error:
@@ -108,12 +125,12 @@ run_task :: proc(w: ^Worker) -> (result: task.Docker_Result) {
 		case .Completed:
 			result = stop_task(w, t)
 		case:
-			log.warnf("[%s] This is a mistake. persisted task: %v, queued task: %v", w.name, pt, t)
+			log.warnf("[%s] This is a mistake. task: %v", w.name, t)
 			result.error = task.Unreachable_Error{}
 		}
 	} else {
-		log.warnf("[%s] Invalid transition from %v to %v", w.name, pt.state, t.state)
-		result.error = task.Invalid_Transition_Error{pt.state, t.state}
+		log.warnf("[%s] Invalid transition from %v to %v", w.name, t.state, t.state)
+		result.error = task.Invalid_Transition_Error{t.state, t.state}
 	}
 
 	return result
@@ -142,14 +159,13 @@ start_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	if result.error != nil {
 		log.errorf("[%s] Error running task %s: %v", w.name, t.id, result.error)
 		t.state = .Failed
-		w.db[t.id] = t
+		store.put(w.db, t.id, t)
 		return result
 	}
 
 	t.container_id = result.container_id
 	t.state = .Running
-	w.db[t.id] = t
-
+	store.put(w.db, t.id, t)
 	return result
 }
 
@@ -167,18 +183,22 @@ stop_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) {
 	}
 	t.finish_time = lib.new_time()
 	t.state = .Completed
-	w.db[t.id] = t
+	store.put(w.db, t.id, t)
 	log.debugf("[%s] Stopped and removed container %v for task %s", w.name, t.container_id, t.id)
 
 	return result
 }
 
 get_tasks :: proc(w: ^Worker) -> (tasks: []task.Task) {
-	tasks = make([]task.Task, len(w.db))
-	i := 0
-	for _, t in w.db {
+	ts, err := store.list(w.db)
+	defer delete(ts)
+	if err != nil {
+		log.errorf("[%s] Error getting list of tasks: %v", w.name, err)
+		return nil
+	}
+	tasks = make([]task.Task, len(ts))
+	for t, i in ts {
 		tasks[i] = t^
-		i += 1
 	}
 	return tasks
 }
@@ -190,7 +210,13 @@ inspect_task :: proc(w: ^Worker, t: ^task.Task) -> (result: task.Docker_Result) 
 }
 
 do_update_tasks :: proc(w: ^Worker) {
-	for id, &t in w.db {
+	tasks, err := store.list(w.db)
+	defer delete(tasks)
+	if err != nil {
+		log.error("[%s] Error getting list of tasks: %v", w.name, err)
+		return
+	}
+	for t in tasks {
 		if t.state == .Running {
 			result := inspect_task(w, t)
 			if result.error != nil {
@@ -198,7 +224,7 @@ do_update_tasks :: proc(w: ^Worker) {
 			}
 
 			if result.response == nil {
-				log.warnf("[%s] No container for running task %s", w.name, id)
+				log.warnf("[%s] No container for running task %s", w.name, t.id)
 				t.state = .Failed
 			}
 
@@ -208,15 +234,17 @@ do_update_tasks :: proc(w: ^Worker) {
 					log.warnf(
 						"[%s] Container for task %s in non-running state %s",
 						w.name,
-						id,
+						t.id,
 						r.state.status,
 					)
 					t.state = .Failed
+					store.put(w.db, t.id, t)
 				}
 
 				t.exposed_ports = r.config.exposed_ports
 				t.host_ports = r.network_settings.ports
 				t.port_bindings = r.host_config.port_bindings
+				store.put(w.db, t.id, t)
 			}
 		}
 	}

@@ -16,15 +16,6 @@ import "../store"
 import "../task"
 import "../worker"
 
-Scheduler_Type :: enum {
-	ROUND_ROBIN  = 1,
-	ENHANCED_PVM = 2,
-}
-
-Db_Type :: enum {
-	MEMORY = 1,
-}
-
 Manager_Error :: union {
 	Health_Check_Error,
 	Scheduler_Error,
@@ -49,7 +40,13 @@ Manager :: struct {
 	scheduler:       ^scheduler.Scheduler,
 }
 
-init :: proc(workers: []string, scheduler_type: Scheduler_Type, db_type: Db_Type) -> (m: Manager) {
+init :: proc(
+	workers: []string,
+	scheduler_type: scheduler.Scheduler_Type,
+	db_type: store.Db_Type,
+) -> (
+	m: Manager,
+) {
 	http.client_init()
 	queue.init(&m.pending)
 	m.worker_task_map = make(map[string][dynamic]lib.UUID)

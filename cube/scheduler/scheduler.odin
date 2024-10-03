@@ -3,6 +3,11 @@ package scheduler
 import "../node"
 import "../task"
 
+Scheduler_Type :: enum {
+	ROUND_ROBIN  = 1,
+	ENHANCED_PVM = 2,
+}
+
 Scheduler :: struct {
 	variant: union {
 		^Round_Robin,

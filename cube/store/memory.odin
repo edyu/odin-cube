@@ -6,7 +6,6 @@ import "core:log"
 import "core:os"
 
 import "../lib"
-import "../task"
 
 Memory :: struct($E: typeid) {
 	using _: Store(E),

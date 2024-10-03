@@ -6,12 +6,12 @@ import "core:log"
 import "core:os"
 import "core:strings"
 
-import "../lib"
-
 import "../docker/client"
 import "../docker/connection"
 import "../docker/container"
 import "../docker/image"
+import "../lib"
+import "../store"
 
 Unreachable_Error :: struct {}
 
@@ -21,6 +21,7 @@ Invalid_Transition_Error :: struct {
 }
 
 Task_Error :: union {
+	store.Store_Error,
 	client.Client_Error,
 	Unreachable_Error,
 	Invalid_Transition_Error,
