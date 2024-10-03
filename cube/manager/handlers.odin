@@ -1,12 +1,14 @@
 package manager
 
-import "../http"
-import "../lib"
-import "../task"
 import "core:encoding/json"
 import "core:fmt"
 import "core:log"
 import "core:strings"
+
+import "../http"
+import "../lib"
+import "../store"
+import "../task"
 
 start_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Request) {
 	manager := transmute(^Manager)ctx
@@ -82,10 +84,10 @@ stop_task_handler :: proc(ctx: rawptr, w: ^http.Response_Writer, r: ^http.Reques
 		append(&w.buffer, ..m)
 		return
 	}
-	stopping_task, found := manager.task_db[t_id]
-	if !found {
-		msg := fmt.tprintf("No task with task id %s found", t_id)
-		log.warn(msg)
+	stopping_task, err := store.get(manager.task_db, t_id)
+	if err != nil {
+		msg := fmt.tprintf("No task with task id %s found: %v", t_id, err)
+		log.error(msg)
 		http.set_response_status(w, .HTTP_NOT_FOUND)
 		e := Error_Response{.HTTP_NOT_FOUND, msg}
 		m, _ := json.marshal(e)

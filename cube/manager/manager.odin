@@ -12,12 +12,17 @@ import "../http"
 import "../lib"
 import "../node"
 import "../scheduler"
+import "../store"
 import "../task"
 import "../worker"
 
 Scheduler_Type :: enum {
 	ROUND_ROBIN  = 1,
 	ENHANCED_PVM = 2,
+}
+
+Db_Type :: enum {
+	MEMORY = 1,
 }
 
 Manager_Error :: union {
@@ -35,8 +40,8 @@ Scheduler_Error :: struct {
 
 Manager :: struct {
 	pending:         queue.Queue(^task.Event),
-	task_db:         map[lib.UUID]^task.Task,
-	event_db:        map[lib.UUID]^task.Event,
+	task_db:         ^store.Store(task.Task),
+	event_db:        ^store.Store(task.Event),
 	workers:         [dynamic]string,
 	worker_task_map: map[string][dynamic]lib.UUID,
 	task_worker_map: map[lib.UUID]string,
@@ -44,11 +49,9 @@ Manager :: struct {
 	scheduler:       ^scheduler.Scheduler,
 }
 
-init :: proc(workers: []string, scheduler_type: Scheduler_Type) -> (m: Manager) {
+init :: proc(workers: []string, scheduler_type: Scheduler_Type, db_type: Db_Type) -> (m: Manager) {
 	http.client_init()
 	queue.init(&m.pending)
-	m.task_db = make(map[lib.UUID]^task.Task)
-	m.event_db = make(map[lib.UUID]^task.Event)
 	m.worker_task_map = make(map[string][dynamic]lib.UUID)
 	m.task_worker_map = make(map[lib.UUID]string)
 	m.workers = make([dynamic]string)
@@ -67,7 +70,16 @@ init :: proc(workers: []string, scheduler_type: Scheduler_Type) -> (m: Manager) 
 	case .ENHANCED_PVM:
 		m.scheduler = scheduler.new_scheduler(scheduler.Epvm)
 	case:
-		msg := fmt.tprintf("unknown scheduler: %s", scheduler_type)
+		msg := fmt.tprintf("invalid scheduler: %s", scheduler_type)
+		panic(msg)
+	}
+
+	switch db_type {
+	case .MEMORY:
+		m.task_db = store.new_store(store.Memory(task.Task), task.Task)
+		m.event_db = store.new_store(store.Memory(task.Event), task.Event)
+	case:
+		msg := fmt.tprintf("invalid db: %s", db_type)
 		panic(msg)
 	}
 
@@ -77,8 +89,10 @@ init :: proc(workers: []string, scheduler_type: Scheduler_Type) -> (m: Manager) 
 deinit :: proc(m: ^Manager) {
 	http.client_deinit()
 	queue.destroy(&m.pending)
-	delete_map(m.task_db)
-	delete_map(m.event_db)
+	store.destroy_store(m.task_db)
+	free(m.task_db)
+	store.destroy_store(m.event_db)
+	free(m.event_db)
 	delete_map(m.worker_task_map)
 	delete_map(m.task_worker_map)
 	delete(m.workers)
@@ -126,22 +140,20 @@ do_update_tasks :: proc(m: ^Manager) {
 					for t in tasks {
 						log.debugf("Attempting to update task %v", t.id)
 
-						if t.id not_in m.task_db {
-							log.warnf("Task with id %s not found", t.id)
+						ut, err := store.get(m.task_db, t.id)
+						if err != nil {
+							log.errorf("Task with id %s not found: %v", t.id, err)
 							continue
 						}
-
-						ut := m.task_db[t.id]
 						if ut.state != t.state {
 							ut.state = t.state
 						}
-
 						ut.start_time = t.start_time
 						ut.finish_time = t.finish_time
 						ut.container_id = t.container_id
 						ut.host_ports = t.host_ports
 
-						m.task_db[ut.id] = ut
+						store.put(m.task_db, ut.id, ut)
 					}
 				}
 			}
@@ -164,36 +176,42 @@ send_work :: proc(m: ^Manager) {
 		e := queue.pop_front(&m.pending)
 		t := &e.task
 
-		m.event_db[e.id] = e
+		err := store.put(m.event_db, e.id, e)
+		if err != nil {
+			log.errorf("Error attempting to store task event %s: %v", e.id, err)
+		}
 		log.debugf("Pulled %v off pending queue", e)
 
 		task_worker, ok := m.task_worker_map[t.id]
 		if ok {
-			persisted_task := m.task_db[t.id]
-			if e.state == .Completed &&
-			   task.valid_state_transition(persisted_task.state, e.state) {
+			pt, err := store.get(m.task_db, t.id)
+			if err != nil {
+				log.errorf("Unable to schedule task: %v", err)
+				return
+			}
+			if e.state == .Completed && task.valid_state_transition(pt.state, e.state) {
 				stop_task(m, task_worker, t.id)
 				return
 			}
 
 			log.warnf(
 				"Invalid request: existing task %s is in state %s and cannot transition to the completed state",
-				persisted_task.id,
-				persisted_task.state,
+				pt.id,
+				pt.state,
 			)
 			return
 		}
 
-		w, err := select_worker(m, t^)
-		if err != nil {
-			log.errorf("Error selecting worker for task %s: %v", t.id, err)
+		w, serr := select_worker(m, t^)
+		if serr != nil {
+			log.errorf("Error selecting worker for task %s: %v", t.id, serr)
 		}
 
 		append(&m.worker_task_map[w.name], e.task.id)
 		m.task_worker_map[t.id] = w.name
 
 		t.state = .Scheduled
-		m.task_db[t.id] = t
+		store.put(m.task_db, t.id, t)
 
 		data, jerr := json.marshal(e^)
 		if jerr != nil {
@@ -244,11 +262,15 @@ add_task :: proc(m: ^Manager, e: ^task.Event) {
 }
 
 get_tasks :: proc(m: ^Manager) -> (tasks: []task.Task) {
-	tasks = make([]task.Task, len(m.task_db))
-	i := 0
-	for _, t in m.task_db {
+	ts, err := store.list(m.task_db)
+	defer delete(ts)
+	if err != nil {
+		log.errorf("Error getting list of tasks: %v", err)
+		return nil
+	}
+	tasks = make([]task.Task, len(ts))
+	for t, i in ts {
 		tasks[i] = t^
-		i += 1
 	}
 	return tasks
 }
@@ -257,7 +279,7 @@ restart_task :: proc(m: ^Manager, t: ^task.Task) {
 	w := m.task_worker_map[t.id]
 	t.state = .Scheduled
 	t.restart_count += 1
-	m.task_db[t.id] = t
+	store.put(m.task_db, t.id, t)
 
 	e := task.new_event(t^)
 	// te.task.id = lib.new_uuid()
@@ -297,7 +319,13 @@ restart_task :: proc(m: ^Manager, t: ^task.Task) {
 }
 
 do_health_checks :: proc(m: ^Manager) {
-	for _, &t in m.task_db {
+	tasks, err := store.list(m.task_db)
+	defer delete(tasks)
+	if err != nil {
+		log.errorf("Cannot get list of tasks: %v", err)
+		return
+	}
+	for t in tasks {
 		if t.state == .Running && t.restart_count < 3 {
 			err := check_task_health(m, t)
 			if err != nil {

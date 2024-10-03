@@ -139,7 +139,7 @@ main :: proc() {
 		fmt.tprintf("%s:%d", whost, wport + 2),
 	}
 
-	m := manager.init(workers, .ENHANCED_PVM)
+	m := manager.init(workers, .ENHANCED_PVM, .MEMORY)
 	// m := manager.init(workers, .ROUND_ROBIN)
 	defer manager.deinit(&m)
 
