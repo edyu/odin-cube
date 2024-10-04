@@ -29,7 +29,14 @@ init :: proc(name: string, db_type: store.Db_Type) -> (w: Worker) {
 	queue.init(&w.queue)
 	switch db_type {
 	case .MEMORY:
-		w.db = store.new_store(store.Memory(task.Task), task.Task)
+		w.db, _ = store.new_store(store.Memory(task.Task), task.Task)
+	case .PERSISTENT:
+		filename := fmt.tprintf("%s_tasks.db", name)
+		err: store.Store_Error
+		w.db, err = store.new_store(store.Db(task.Task), task.Task, filename)
+		if err != nil {
+			log.fatalf("Unable to create task store %s: %v", filename, err)
+		}
 	case:
 		msg := fmt.tprintf("invalid db: %s", db_type)
 		panic(msg)

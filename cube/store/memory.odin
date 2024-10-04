@@ -29,8 +29,8 @@ mem_get :: proc(s: ^Memory($E), id: lib.UUID) -> (t: ^E, e: Store_Error) {
 	ok: bool
 	t, ok = s.db[id]
 	if !ok {
-		msg := fmt.aprintf("Item with id %s does not exist", id)
-		return nil, Nonexistent_Error{msg}
+		msg := fmt.aprintf("Item %s not found", id)
+		return nil, Db_Error{msg}
 	}
 	return t, nil
 }

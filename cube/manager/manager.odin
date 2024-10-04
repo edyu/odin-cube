@@ -1,15 +1,18 @@
 package manager
 
 import "core:container/queue"
+import "core:crypto"
 import "core:encoding/json"
 import "core:fmt"
 import "core:log"
 import "core:strings"
+import "core:testing"
 import "core:time"
 
 import "../docker/connection"
 import "../http"
 import "../lib"
+import "../librocksdb"
 import "../node"
 import "../scheduler"
 import "../store"
@@ -73,8 +76,22 @@ init :: proc(
 
 	switch db_type {
 	case .MEMORY:
-		m.task_db = store.new_store(store.Memory(task.Task), task.Task)
-		m.event_db = store.new_store(store.Memory(task.Event), task.Event)
+		m.task_db, _ = store.new_store(store.Memory(task.Task), task.Task)
+		m.event_db, _ = store.new_store(store.Memory(task.Event), task.Event)
+	case .PERSISTENT:
+		err: store.Store_Error
+		m.task_db, err = store.new_store(store.Db(task.Task), task.Task, "tasks.db")
+		if err != nil {
+			msg := fmt.tprintf("Unable to create task store: %v", err)
+			log.fatalf(msg)
+			panic(msg)
+		}
+		m.event_db, err = store.new_store(store.Db(task.Event), task.Event, "events.db")
+		if err != nil {
+			msg := fmt.tprintf("Unable to create event store: %v", err)
+			log.fatal(msg)
+			panic(msg)
+		}
 	case:
 		msg := fmt.tprintf("invalid db: %s", db_type)
 		panic(msg)
@@ -395,5 +412,81 @@ stop_task :: proc(m: ^Manager, worker: string, task_id: lib.UUID) {
 		return
 	}
 	log.debugf("Task %s has been scheduled to be stopped", task_id)
+}
+
+@(test)
+test_task_db :: proc(t: ^testing.T) {
+	context.random_generator = crypto.random_generator()
+	db: store.Db(task.Task)
+	store.db_init(&db, "task_test.db")
+	n, err := store.db_count(&db)
+	log.info("db.count:", n)
+	msg := fmt.tprintf("count.error: %v", err)
+	testing.expect(t, err == nil, msg)
+	testing.expect(t, n == 0, "db.count != 0")
+	n = 100
+	tt := task.new_task("blah", .Pending, "image/blah")
+	defer task.destroy_task(tt)
+	err = store.db_put(&db, tt.id, tt)
+	msg = fmt.tprintf("put.error: %v", err)
+	testing.expect(t, err == nil, msg)
+	tt2, err2 := store.db_get(&db, tt.id)
+	defer delete(tt2.image)
+	defer delete(tt2.name)
+	defer task.destroy_task(tt2)
+	msg = fmt.tprintf("get.error: %v", err)
+	testing.expect(t, err2 == nil, msg)
+	testing.expect(t, tt2 != nil, "task2 is nil")
+	msg = fmt.tprintf("get %s != %s", tt.id, tt2.id)
+	testing.expect(t, tt.id == tt2.id, msg)
+	testing.expect(t, tt.state == tt2.state, msg)
+	testing.expect(t, tt.image == tt2.image, msg)
+	log.infof("task1: %v", tt)
+	log.infof("task2: %v", tt2)
+
+	n, err = store.db_count(&db)
+	log.info("put: db.count:", n)
+	msg = fmt.tprintf("put: count.error: %v", err)
+	testing.expect(t, err == nil, msg)
+	testing.expect(t, n == 1, "db.count != 1")
+}
+
+@(test)
+test_event_db :: proc(t: ^testing.T) {
+	context.random_generator = crypto.random_generator()
+	db: store.Db(task.Event)
+	store.db_init(&db, "event_test.db")
+	n, err := store.db_count(&db)
+	log.info("db.count:", n)
+	msg := fmt.tprintf("count.error: %v", err)
+	testing.expect(t, err == nil, msg)
+	testing.expect(t, n == 0, "db.count != 0")
+	tt := task.new_task("blah", .Pending, "image/blah")
+	defer task.destroy_task(tt)
+	e := task.new_event(tt^)
+	defer task.destroy_event(e)
+	err = store.db_put(&db, e.id, e)
+	msg = fmt.tprintf("put.error: %v", err)
+	testing.expect(t, err == nil, msg)
+	e2, err2 := store.db_get(&db, e.id)
+	defer delete(string(e2.task.id))
+	defer delete(e2.task.image)
+	defer delete(e2.task.name)
+	defer delete(string(e2.task.start_time))
+	defer delete(string(e2.task.finish_time))
+	defer task.destroy_event(e2)
+	msg = fmt.tprintf("get.error: %v", err)
+	testing.expect(t, err2 == nil, msg)
+	testing.expect(t, e2 != nil, "event2 is nil")
+	msg = fmt.tprintf("get %s != %s", e.id, e2.id)
+	testing.expect(t, e.id == e2.id, msg)
+	log.infof("event1: %v", e)
+	log.infof("event2: %v", e2)
+
+	n, err = store.db_count(&db)
+	log.info("put: db.count:", n)
+	msg = fmt.tprintf("put: count.error: %v", err)
+	testing.expect(t, err == nil, msg)
+	testing.expect(t, n == 1, "db.count != 1")
 }
 

@@ -85,13 +85,16 @@ main :: proc() {
 		wport = u16(strconv.atoi(wport_str))
 	}
 
-	w1 := worker.init("worker-1", .MEMORY)
+	w1 := worker.init("worker-1", .PERSISTENT)
+	// w1 := worker.init("worker-1", .MEMORY)
 	defer worker.deinit(&w1)
 
-	w2 := worker.init("worker-2", .MEMORY)
+	w2 := worker.init("worker-2", .PERSISTENT)
+	// w2 := worker.init("worker-2", .MEMORY)
 	defer worker.deinit(&w2)
 
-	w3 := worker.init("worker-3", .MEMORY)
+	w3 := worker.init("worker-3", .PERSISTENT)
+	// w3 := worker.init("worker-3", .MEMORY)
 	defer worker.deinit(&w3)
 
 	w1_task_thread := thread.create_and_start_with_data(&w1, worker_run_tasks, context)
@@ -139,8 +142,8 @@ main :: proc() {
 		fmt.tprintf("%s:%d", whost, wport + 2),
 	}
 
-	m := manager.init(workers, .ENHANCED_PVM, .MEMORY)
-	// m := manager.init(workers, .ROUND_ROBIN)
+	m := manager.init(workers, .ENHANCED_PVM, .PERSISTENT)
+	// m := manager.init(workers, .ROUND_ROBIN, .MEMORY)
 	defer manager.deinit(&m)
 
 	m_process_thread := thread.create_and_start_with_data(&m, manager_process_tasks, context)

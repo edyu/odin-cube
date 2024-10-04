@@ -91,7 +91,7 @@ clone_task :: proc(from: ^Task) -> (task: ^Task) {
 	return task
 }
 
-free_task :: proc(task: ^Task) {
+destroy_task :: proc(task: ^Task) {
 	delete(string(task.id))
 	free(task)
 }
@@ -116,8 +116,9 @@ new_event :: proc(task: Task) -> (event: ^Event) {
 	return new_event_with_id(lib.new_uuid(), .Pending, task)
 }
 
-free_event :: proc(event: ^Event) {
+destroy_event :: proc(event: ^Event) {
 	delete(string(event.id))
+	delete(string(event.timestamp))
 	free(event)
 }
 
