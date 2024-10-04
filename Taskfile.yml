@@ -9,7 +9,7 @@ tasks:
     deps:
       - build
     cmds:
-      - rm -rf tasks.db events.db
+      - rm -rf *.db
       - bin/cube {{.CLI_ARGS}}
     aliases:
       - r
@@ -30,12 +30,13 @@ tasks:
 
   test:
     cmds:
-      - odin test cube -out=bin/cube-test
+      - rm -rf *test.db
+      - odin test cube/ -all-packages -out=bin/cube-test
     aliases:
       - t
     silent: false
     sources:
-      - './cube/**/*.odin'
+      # - './cube/**/*.odin'
     generates:
       - bin/cube-test
 
